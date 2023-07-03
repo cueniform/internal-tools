@@ -21,4 +21,4 @@ test: output/registry.terraform.io_integrations_github_5.9.2.json
 
 .PHONY: unitest
 unitest:
-	gotestdox
+	go test ./...
