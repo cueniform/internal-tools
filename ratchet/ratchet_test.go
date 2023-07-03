@@ -20,7 +20,6 @@ func TestValidTFSChemaVersion_ReturnsTrueGivenKnownVersion(t *testing.T) {
 	if want != got {
 		t.Fatalf("want valid %t, got %t", want, got)
 	}
-
 }
 
 func TestValidTFSChemaVersion_ReturnsFalseGivenNumber(t *testing.T) {
@@ -172,37 +171,6 @@ func TestConvertTerraformType_ReturnsExpectedStringGivenListBool(t *testing.T) {
 	}
 	if want != got {
 		t.Fatalf("want %q, got %q", want, got)
-	}
-}
-
-func TestConvertTerraformType_ReturnsExpectedStringGivenMapString(t *testing.T) {
-	t.Parallel()
-	want := `[...close({
-        role_arn: string
-        role_type: string
-    })]`
-	got, err := ratchet.ConvertTerraformType(gjson.Result{
-		Type: gjson.JSON,
-		Raw: `["set", [
-                    "object",
-                    {
-                      "role_arn": "string",
-                      "role_type": "string"
-                    }
-                  ]]`,
-		Str: `["set", [
-                    "object",
-                    {
-                      "role_arn": "string",
-                      "role_type": "string"
-                    }
-                  ]]`,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !cmp.Equal(want, got) {
-		t.Fatal(cmp.Diff(want, got))
 	}
 }
 
@@ -433,6 +401,47 @@ data_source2: #DataSource: {
             "attributes": {
               "bogus": {
                 "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`)
+	got := ratchet.EmitEntities("bogus", inputJSON)
+	if !cmp.Equal(want, got) {
+		t.Fatal(cmp.Diff(want, got))
+	}
+}
+
+func TestEmitEntities_ReturnsExpectedEntityGivenDataSourceWithObject(t *testing.T) {
+	t.Parallel()
+	want := `bogus: #DataSource: {
+    myComplexObj: [..._#myComplexObj]
+    _#myComplexObj: {
+        field1: string
+        field2: string
+    }
+}`
+	inputJSON := []byte(`{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "bogus": {
+      "data_source_schemas": {
+        "bogus": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "myComplexObj": {
+                "type": ["set",[
+                    "object",
+                    {
+                      "field1": "string",
+                      "field2": "string"
+                    }
+                  ]
+				]
               }
             }
           }

@@ -1,23 +1,21 @@
 default:
 	false
 
-FORCE: ;
+build/%.json: schemata/%.json.zst
+	zstdcat "$^" >"$@"
 
-build/%.json:
-	zstdcat schemata/$*.json.zst > $@
+output/%.cue: ADDRESS=$(shell echo "$*" | tr '_' '/' | cut -d/ -f1-3)
+output/%.cue: build/%.json
+	go run cmd/ratchet/main.go "$^" $(ADDRESS) >"$@"
 
-output/%.json: build/%.json
-output/%.json: ADDRESS=$(shell echo "$*" | tr '_' '/' | cut -d/ -f1-3)
-output/%.json:
-	go run cmd/ratchet/main.go build/$*.json $(ADDRESS)
-
-clean: FORCE
-	rm -f output/*.json build/*.json
+.PHONY: clean
+clean:
+	rm -vf output/*.cue build/*.json
 
 .PHONY: test
 test: clean 
 test: unitest
-test: output/registry.terraform.io_integrations_github_5.9.2.json
+test: output/registry.terraform.io_integrations_github_5.9.2.cue
 
 .PHONY: unitest
 unitest:

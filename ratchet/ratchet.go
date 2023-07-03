@@ -33,6 +33,21 @@ func EmitEntities(providerID string, JSONData []byte) string {
 								return true
 							}
 							tfType := value.Get("type")
+							if tfType.IsArray() {
+								if tfType.Array()[0].String() == "set" {
+									if tfType.Array()[1].IsArray() {
+										if tfType.Array()[1].Array()[0].String() == "object" {
+											output = append(output, fmt.Sprintf("    %s: [..._#%s]", key.String(), key.String()))
+										}
+										output = append(output, fmt.Sprintf("    _#%s: {", key.String()))
+										for k, v := range tfType.Array()[1].Array()[1].Map() {
+											output = append(output, fmt.Sprintf("        %s: %s", k, v))
+										}
+										output = append(output, "    }")
+									}
+								}
+								return true
+							}
 							//fmt.Println(tfType.Type, tfType.Raw, tfType.String())
 							CUEType, err := ConvertTerraformType(tfType)
 							if err != nil {
@@ -61,6 +76,21 @@ func EmitEntities(providerID string, JSONData []byte) string {
 								return true
 							}
 							tfType := value.Get("type")
+							if tfType.IsArray() {
+								if tfType.Array()[0].String() == "set" {
+									if tfType.Array()[1].IsArray() {
+										if tfType.Array()[1].Array()[0].String() == "object" {
+											output = append(output, fmt.Sprintf("    %s: [..._#%s]", key.String(), key.String()))
+										}
+										output = append(output, fmt.Sprintf("    _#%s: {", key.String()))
+										for k, v := range tfType.Array()[1].Array()[1].Map() {
+											output = append(output, fmt.Sprintf("        %s: %s", k, v))
+										}
+										output = append(output, "    }")
+									}
+								}
+								return true
+							}
 							CUEType, err := ConvertTerraformType(tfType)
 							if err != nil {
 								log.Fatal(err)
@@ -102,19 +132,7 @@ func ConvertTerraformType(TFType gjson.Result) (string, error) {
 				if !TFTypeItems[1].IsArray() {
 					return fmt.Sprintf("[...%s]", TFTypeItems[1].String()), nil
 				}
-				output := []string{"[...close({"}
-				TFTypeItems[1].ForEach(func(key, value gjson.Result) bool {
-					value.ForEach(func(key, value gjson.Result) bool {
-						if value.String() == "object" {
-							return true
-						}
-						output = append(output, fmt.Sprintf("        %s: %s", key.String(), value.String()))
-						return true
-					})
-					return true
-				})
-				output = append(output, "    })]")
-				return strings.Join(output, "\n"), nil
+				return "", fmt.Errorf("i dont know what to return")
 			case "map":
 				return fmt.Sprintf("[string]: %s", TFTypeItems[1].String()), nil
 			default:
