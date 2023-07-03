@@ -7,7 +7,9 @@ build/%.json:
 	zstdcat schemata/$*.json.zst > $@
 
 output/%.json: build/%.json
-	go run cmd/ratchet/main.go build/$*.json registry.terraform.io/integrations/github
+output/%.json: ADDRESS=$(shell echo "$*" | tr '_' '/' | cut -d/ -f1-3)
+output/%.json:
+	go run cmd/ratchet/main.go build/$*.json $(ADDRESS)
 
 clean: FORCE
 	rm -f output/*.json build/*.json
