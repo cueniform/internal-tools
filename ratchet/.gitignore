@@ -1,0 +1,4 @@
+schemata
+output/*
+build/*
+!.gitkeep
