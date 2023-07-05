@@ -1,6 +1,10 @@
 default:
 	false
 
+schemata/%.json.zst:
+	mkdir -p schemata
+	curl -SsfL https://github.com/cueniform/raw-terraform-registry-providers-schemata/raw/main/$@ -o $@
+
 build/%.json: schemata/%.json.zst
 	zstdcat "$^" >"$@"
 
@@ -10,13 +14,9 @@ output/%.cue: build/%.json
 
 .PHONY: clean
 clean:
-	rm -vf output/*.cue build/*.json
+	rm -v output/*.cue build/*.json schemata/*.json.zst || true
 
 .PHONY: test
 test: clean 
-test: unitest
 test: output/registry.terraform.io_integrations_github_5.9.2.cue
-
-.PHONY: unitest
-unitest:
-	go test ./...
+test: output/registry.terraform.io_hashicorp_aws_5.6.1.cue

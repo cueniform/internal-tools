@@ -3,6 +3,7 @@ package ratchet
 import (
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 
 	"github.com/tidwall/gjson"
@@ -40,8 +41,13 @@ func EmitEntities(providerID string, JSONData []byte) string {
 											output = append(output, fmt.Sprintf("    %s: [..._#%s]", key.String(), key.String()))
 										}
 										output = append(output, fmt.Sprintf("    _#%s: {", key.String()))
-										for k, v := range tfType.Array()[1].Array()[1].Map() {
-											output = append(output, fmt.Sprintf("        %s: %s", k, v))
+										keys := []string{}
+										for k := range tfType.Array()[1].Array()[1].Map() {
+											keys = append(keys, k)
+										}
+										sort.Strings(keys)
+										for _, k := range keys {
+											output = append(output, fmt.Sprintf("        %s: %s", k, tfType.Array()[1].Array()[1].Map()[k]))
 										}
 										output = append(output, "    }")
 									}
