@@ -17,17 +17,17 @@ func ValidTFSchemaVersion(schemaVersion gjson.Result) bool {
 	}
 }
 
-func formatPrimitiveTypes(key, value string, required, optional bool) string {
-	var msg string
+func formatPrimitiveTypes(key, value string, typeAttributes gjson.Result) string {
+	var output string
 	switch {
-	case required:
-		msg = fmt.Sprintf("    %s!: %s", key, value)
-	case optional:
-		msg = fmt.Sprintf("    %s?: %s", key, value)
+	case typeAttributes.Get("required").Bool():
+		output = fmt.Sprintf("    %s!: %s", key, value)
+	case typeAttributes.Get("optional").Bool():
+		output = fmt.Sprintf("    %s?: %s", key, value)
 	default:
 		log.Fatalf("Attribute %q is neither required or optional", key)
 	}
-	return msg
+	return output
 }
 
 func formatSetOrListOfComplexObject(key string, objFields gjson.Result) string {
@@ -66,7 +66,7 @@ func Emit(entityID string, entityType string, terraformAttributes gjson.Result) 
 		// it is a primitive type
 		case gjson.String:
 			CUEType = attrType.String()
-			output = append(output, formatPrimitiveTypes(attrID.String(), CUEType, attributes.Get("required").Bool(), attributes.Get("optional").Bool()))
+			output = append(output, formatPrimitiveTypes(attrID.String(), CUEType, attributes))
 		// json schema missing required field
 		case gjson.Null:
 			log.Fatalf("Attribute field not found in %q", attributes.String())
@@ -80,13 +80,13 @@ func Emit(entityID string, entityType string, terraformAttributes gjson.Result) 
 				// it is a set or list of a primitive type
 				if (attrTypeItems[0].String() == "list" || attrTypeItems[0].String() == "set") && attrTypeItems[1].Type == gjson.String {
 					CUEType = fmt.Sprintf("[...%s]", attrTypeItems[1].String())
-					output = append(output, formatPrimitiveTypes(attrID.String(), CUEType, attributes.Get("required").Bool(), attributes.Get("optional").Bool()))
+					output = append(output, formatPrimitiveTypes(attrID.String(), CUEType, attributes))
 					return true
 				}
 				// it is a map of a primitive type
 				if attrTypeItems[0].String() == "map" && attrTypeItems[1].Type == gjson.String {
 					CUEType = fmt.Sprintf("[string]: %s", attrTypeItems[1].String())
-					output = append(output, formatPrimitiveTypes(attrID.String(), CUEType, attributes.Get("required").Bool(), attributes.Get("optional").Bool()))
+					output = append(output, formatPrimitiveTypes(attrID.String(), CUEType, attributes))
 					return true
 				}
 				// it is a set or list of a complex type
