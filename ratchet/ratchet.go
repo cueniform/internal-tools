@@ -103,25 +103,24 @@ func Emit(entityID string, entityType string, terraformAttributes gjson.Result) 
 		}
 		return true
 	})
+	output = append(output, "}")
 	return strings.Join(output, "\n")
 }
 
 func EmitEntities(providerID string, JSONData []byte) string {
 	output := []string{}
-	gjson.GetBytes(JSONData, "provider_schemas").ForEach(func(key, value gjson.Result) bool {
-		if key.String() == providerID {
-			value.ForEach(func(key, value gjson.Result) bool {
+	gjson.GetBytes(JSONData, "provider_schemas").ForEach(func(providerAddress, providerValue gjson.Result) bool {
+		if providerAddress.String() == providerID {
+			providerValue.ForEach(func(key, value gjson.Result) bool {
 				if key.String() == "data_source_schemas" {
-					value.ForEach(func(key, value gjson.Result) bool {
-						output = append(output, Emit(key.String(), "#DataSource", value.Get("block").Get("attributes")))
-						output = append(output, "}")
+					value.ForEach(func(datasourceID, datasourceValue gjson.Result) bool {
+						output = append(output, Emit(datasourceID.String(), "#DataSource", datasourceValue.Get("block").Get("attributes")))
 						return true
 					})
 				}
 				if key.String() == "resource_schemas" {
 					value.ForEach(func(key, value gjson.Result) bool {
 						output = append(output, Emit(key.String(), "#Resource", value.Get("block").Get("attributes")))
-						output = append(output, "}")
 						return true
 					})
 				}
