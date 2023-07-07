@@ -18,7 +18,7 @@ _#Block: {
 	deprecated?:       bool
 	attributes?: [attributeName=string]: {
 		type?: "string" | "number" | "bool" | "dynamic" |
-			["map", "string"] | ["map", "bool"] | ["map", "number"] |
+			["map", "string"] | ["map", "bool"] | ["map", "number"] | ["map", ["list", "string"]] |
 			[ "list", "number"] | ["list", "string"] | ["list", ["map", "string"]] | ["list", ["list", "number"]] |
 			["set", "number"] | ["set", "string"] | ["set", [ "map", "string"]] |
 					["object", _] | ["list", ["object", _]] | ["set", ["object", _]]
@@ -29,7 +29,10 @@ _#Block: {
 		computed?:         bool
 		sensitive?:        bool
 		deprecated?:       bool
-		nested_type?:      "foo" // TODO: investigate hashicorp/awscc's use of this
+		nested_type?: {
+			nesting_mode?: _
+			attributes?:   _
+		}
 	}
 	block_types?: [blockName=string]: {
 		nesting_mode?: "single" | "list" | "set" | "map"
