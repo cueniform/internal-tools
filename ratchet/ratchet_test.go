@@ -109,9 +109,10 @@ func TestValidTFSChemaVersion_ReturnsFalseGivenUnkownResultType(t *testing.T) {
 	}
 }
 
-func TestEmitEntities_SkipsItemsWithComputedTrue(t *testing.T) {
+func TestEmitEntities_SkipsItemsWithComputedTrueGivenDataSource(t *testing.T) {
 	t.Parallel()
 	want := `bogus: #DataSource: {
+
 }`
 	inputJSON := []byte(`{
   "provider_schemas": {
@@ -121,7 +122,35 @@ func TestEmitEntities_SkipsItemsWithComputedTrue(t *testing.T) {
           "block": {
             "attributes": {
               "bogus": {
-				"computed": true
+                "computed": true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`)
+	got := ratchet.EmitEntities("bogus", inputJSON)
+	if !cmp.Equal(want, got) {
+		t.Fatal(cmp.Diff(want, got))
+	}
+}
+
+func TestEmitEntities_SkipsItemsWithComputedTrueGivenResource(t *testing.T) {
+	t.Parallel()
+	want := `bogus: #Resource: {
+
+}`
+	inputJSON := []byte(`{
+  "provider_schemas": {
+    "bogus": {
+      "resource_schemas": {
+        "bogus": {
+          "block": {
+            "attributes": {
+              "bogus": {
+                "computed": true
               }
             }
           }
@@ -150,7 +179,36 @@ func TestEmitEntities_ReturnsExpectedStringGivenDataSourceWithRequiredAttribute(
             "attributes": {
               "bogus": {
                 "type": "string",
-				"required": true
+                "required": true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`)
+	got := ratchet.EmitEntities("bogus", inputJSON)
+	if !cmp.Equal(want, got) {
+		t.Fatal(cmp.Diff(want, got))
+	}
+}
+
+func TestEmitEntities_ReturnsExpectedStringGivenResourceWithRequiredAttribute(t *testing.T) {
+	t.Parallel()
+	want := `bogus: #Resource: {
+    bogus!: string
+}`
+	inputJSON := []byte(`{
+  "provider_schemas": {
+    "bogus": {
+      "resource_schemas": {
+        "bogus": {
+          "block": {
+            "attributes": {
+              "bogus": {
+                "type": "string",
+                "required": true
               }
             }
           }
@@ -179,7 +237,7 @@ func TestEmitEntities_ReturnsExpectedStringGivenDataSourceWithOptionalAttribute(
             "attributes": {
               "bogus": {
                 "type": "string",
-				"optional": true
+                "optional": true
               }
             }
           }
@@ -191,6 +249,88 @@ func TestEmitEntities_ReturnsExpectedStringGivenDataSourceWithOptionalAttribute(
 	got := ratchet.EmitEntities("bogus", inputJSON)
 	if !cmp.Equal(want, got) {
 		t.Fatal(cmp.Diff(want, got))
+	}
+}
+
+func TestEmitEntities_ReturnsExpectedStringGivenResourceWithOptionalAttribute(t *testing.T) {
+	t.Parallel()
+	want := `bogus: #Resource: {
+    bogus?: string
+}`
+	inputJSON := []byte(`{
+  "provider_schemas": {
+    "bogus": {
+      "resource_schemas": {
+        "bogus": {
+          "block": {
+            "attributes": {
+              "bogus": {
+                "type": "string",
+                "optional": true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`)
+	got := ratchet.EmitEntities("bogus", inputJSON)
+	if !cmp.Equal(want, got) {
+		t.Fatal(cmp.Diff(want, got))
+	}
+}
+
+func TestEmitEntities_ReturnsExpectedStringGivenDataSourceWithPrimitiveTypes(t *testing.T) {
+	testCases := []struct {
+		desc     string
+		rawInput string
+		want     string
+	}{
+		{
+			desc:     "String",
+			rawInput: `"string"`,
+			want:     "string",
+		},
+		{
+			desc:     "Number",
+			rawInput: `"number"`,
+			want:     "number",
+		},
+		{
+			desc:     "Boolean",
+			rawInput: `"bool"`,
+			want:     "bool",
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			wantTmpl := "bogus: #DataSource: {\n    bogus!: %s\n}"
+			want := fmt.Sprintf(wantTmpl, tC.want)
+			inputTmpl := `{
+  "provider_schemas": {
+    "bogus": {
+      "data_source_schemas": {
+        "bogus": {
+          "block": {
+            "attributes": {
+              "bogus": {
+                "type": %s,
+                "required": true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`
+			inputJSON := []byte(fmt.Sprintf(inputTmpl, tC.rawInput))
+			got := ratchet.EmitEntities("bogus", inputJSON)
+			if !cmp.Equal(want, got) {
+				t.Fatal(cmp.Diff(want, got))
+			}
+		})
 	}
 }
 
@@ -229,7 +369,91 @@ func TestEmitEntities_ReturnsExpectedStringGivenResourceWithPrimitiveTypes(t *te
             "attributes": {
               "bogus": {
                 "type": %s,
-				"required": true
+                "required": true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`
+			inputJSON := []byte(fmt.Sprintf(inputTmpl, tC.rawInput))
+			got := ratchet.EmitEntities("bogus", inputJSON)
+			if !cmp.Equal(want, got) {
+				t.Fatal(cmp.Diff(want, got))
+			}
+		})
+	}
+}
+
+func TestEmitEntities_ReturnsExpectedStringGivenDataSourceWithSetListAndMapOfPrimitiveTypes(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		desc     string
+		rawInput string
+		want     string
+	}{
+		{
+			desc:     "List of string",
+			rawInput: `["list", "string"]`,
+			want:     "[...string]",
+		},
+		{
+			desc:     "List of number",
+			rawInput: `["list", "number"]`,
+			want:     "[...number]",
+		},
+		{
+			desc:     "List of bool",
+			rawInput: `["list", "bool"]`,
+			want:     "[...bool]",
+		},
+		{
+			desc:     "Set of string",
+			rawInput: `["set", "string"]`,
+			want:     "[...string]",
+		},
+		{
+			desc:     "Set of number",
+			rawInput: `["set", "number"]`,
+			want:     "[...number]",
+		},
+		{
+			desc:     "Set of bool",
+			rawInput: `["set", "bool"]`,
+			want:     "[...bool]",
+		},
+		{
+			desc:     "Map of string",
+			rawInput: `["map", "string"]`,
+			want:     "[string]: string",
+		},
+		{
+			desc:     "Map of number",
+			rawInput: `["map", "number"]`,
+			want:     "[string]: number",
+		},
+		{
+			desc:     "Map of bool",
+			rawInput: `["map", "bool"]`,
+			want:     "[string]: bool",
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			wantTmpl := "bogus: #DataSource: {\n    bogus!: %s\n}"
+			want := fmt.Sprintf(wantTmpl, tC.want)
+			inputTmpl := `{
+  "provider_schemas": {
+    "bogus": {
+      "data_source_schemas": {
+        "bogus": {
+          "block": {
+            "attributes": {
+              "bogus": {
+                "type": %s,
+                "required": true
               }
             }
           }
@@ -265,6 +489,11 @@ func TestEmitEntities_ReturnsExpectedStringGivenResourceWithSetListAndMapOfPrimi
 			want:     "[...number]",
 		},
 		{
+			desc:     "List of bool",
+			rawInput: `["list", "bool"]`,
+			want:     "[...bool]",
+		},
+		{
 			desc:     "Set of string",
 			rawInput: `["set", "string"]`,
 			want:     "[...string]",
@@ -275,6 +504,11 @@ func TestEmitEntities_ReturnsExpectedStringGivenResourceWithSetListAndMapOfPrimi
 			want:     "[...number]",
 		},
 		{
+			desc:     "Set of bool",
+			rawInput: `["set", "bool"]`,
+			want:     "[...bool]",
+		},
+		{
 			desc:     "Map of string",
 			rawInput: `["map", "string"]`,
 			want:     "[string]: string",
@@ -283,6 +517,11 @@ func TestEmitEntities_ReturnsExpectedStringGivenResourceWithSetListAndMapOfPrimi
 			desc:     "Map of number",
 			rawInput: `["map", "number"]`,
 			want:     "[string]: number",
+		},
+		{
+			desc:     "Map of bool",
+			rawInput: `["map", "bool"]`,
+			want:     "[string]: bool",
 		},
 	}
 	for _, tC := range testCases {
@@ -298,7 +537,7 @@ func TestEmitEntities_ReturnsExpectedStringGivenResourceWithSetListAndMapOfPrimi
             "attributes": {
               "bogus": {
                 "type": %s,
-				"required": true
+                "required": true
               }
             }
           }
@@ -316,11 +555,11 @@ func TestEmitEntities_ReturnsExpectedStringGivenResourceWithSetListAndMapOfPrimi
 	}
 }
 
-func TestEmitEntities_ReturnsExpectedEntityGivenDataSourceWithTwoAttributes(t *testing.T) {
+func TestEmitEntities_ReturnsRequiredAttributesFirstGivenDataSourceWithTwoAttributes(t *testing.T) {
 	t.Parallel()
 	want := `bogus: #DataSource: {
+    bar!: number
     foo?: string
-    bar?: number
 }`
 	inputJSON := []byte(`{
   "provider_schemas": {
@@ -331,11 +570,45 @@ func TestEmitEntities_ReturnsExpectedEntityGivenDataSourceWithTwoAttributes(t *t
             "attributes": {
               "foo": {
                 "type": "string",
-				"optional": true
+                "optional": true
               },
-			  "bar": {
+              "bar": {
                 "type": "number",
-				"optional": true
+                "required": true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`)
+	got := ratchet.EmitEntities("bogus", inputJSON)
+	if !cmp.Equal(want, got) {
+		t.Fatal(cmp.Diff(want, got))
+	}
+}
+
+func TestEmitEntities_ReturnsRequiredAttributesFirstGivenResourceWithTwoAttributes(t *testing.T) {
+	t.Parallel()
+	want := `bogus: #Resource: {
+    bar!: number
+    foo?: string
+}`
+	inputJSON := []byte(`{
+  "provider_schemas": {
+    "bogus": {
+      "resource_schemas": {
+        "bogus": {
+          "block": {
+            "attributes": {
+              "foo": {
+                "type": "string",
+                "optional": true
+              },
+              "bar": {
+                "type": "number",
+                "required": true
               }
             }
           }
@@ -367,17 +640,59 @@ data_source2: #DataSource: {
             "attributes": {
               "bogus": {
                 "type": "string",
-				"required" true
+                "required" true
               }
             }
           }
         },
-		"data_source2": {
+        "data_source2": {
           "block": {
             "attributes": {
               "bogus": {
                 "type": "string"
-				"required" true
+                "required" true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`)
+	got := ratchet.EmitEntities("bogus", inputJSON)
+	if !cmp.Equal(want, got) {
+		t.Fatal(cmp.Diff(want, got))
+	}
+}
+
+func TestEmitEntities_ReturnsExpectedEntitiesGivenTwoResources(t *testing.T) {
+	t.Parallel()
+	want := `resource1: #Resource: {
+    bogus!: string
+}
+resource2: #Resource: {
+    bogus!: string
+}`
+	inputJSON := []byte(`{
+  "provider_schemas": {
+    "bogus": {
+      "resource_schemas": {
+        "resource1": {
+          "block": {
+            "attributes": {
+              "bogus": {
+                "type": "string",
+                "required" true
+              }
+            }
+          }
+        },
+        "resource2": {
+          "block": {
+            "attributes": {
+              "bogus": {
+                "type": "string"
+                "required" true
               }
             }
           }
@@ -416,7 +731,48 @@ func TestEmitEntities_ReturnsExpectedEntityGivenDataSourceWithComplexObject(t *t
                       "field2": "string"
                     }
                   ]
-				]
+				],
+                "required": true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`)
+	got := ratchet.EmitEntities("bogus", inputJSON)
+	if !cmp.Equal(want, got) {
+		t.Fatal(cmp.Diff(want, got))
+	}
+}
+
+func TestEmitEntities_ReturnsExpectedEntityGivenResourceWithComplexObject(t *testing.T) {
+	t.Parallel()
+	want := `bogus: #Resource: {
+    myComplexObj: [..._#myComplexObj]
+    _#myComplexObj: {
+        field1!: string
+        field2!: string
+    }
+}`
+	inputJSON := []byte(`{
+  "provider_schemas": {
+    "bogus": {
+      "resource_schemas": {
+        "bogus": {
+          "block": {
+            "attributes": {
+              "myComplexObj": {
+                "type": ["set",[
+                    "object",
+                    {
+                      "field1": "string",
+                      "field2": "string"
+                    }
+                  ]
+				],
+                "required": true
               }
             }
           }
