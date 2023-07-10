@@ -54,56 +54,69 @@ func validType(items []gjson.Result) bool {
 	return true
 }
 
-func Emit(entityID string, entityType string, terraformAttributes gjson.Result) string {
-	output := []string{fmt.Sprintf("%s: %s: {", entityID, entityType)}
+func EmitAttribute(attrID string, entityID string, entityType string, terraformAttribute gjson.Result) string {
+	var CUEType string
+	attrType := terraformAttribute.Get("type")
+	switch attrType.Type {
+	// it is a primitive type
+	case gjson.String:
+		CUEType = attrType.String()
+		return formatPrimitiveTypes(attrID, CUEType, terraformAttribute)
+	// json schema missing required field
+	case gjson.Null:
+		log.Fatalf("Attribute field not found in %q", terraformAttribute.String())
+	// it is a complex type
+	case gjson.JSON:
+		if attrType.IsArray() {
+			attrTypeItems := attrType.Array()
+			if !validType(attrTypeItems) {
+				log.Fatalf("Invalid input for terraform attribute type: %q\n", attrType.String())
+			}
+			// it is a set or list of a primitive type
+			if (attrTypeItems[0].String() == "list" || attrTypeItems[0].String() == "set") && attrTypeItems[1].Type == gjson.String {
+				CUEType = fmt.Sprintf("[...%s]", attrTypeItems[1].String())
+				return formatPrimitiveTypes(attrID, CUEType, terraformAttribute)
+			}
+			// it is a map of a primitive type
+			if attrTypeItems[0].String() == "map" && attrTypeItems[1].Type == gjson.String {
+				CUEType = fmt.Sprintf("[string]: %s", attrTypeItems[1].String())
+				return formatPrimitiveTypes(attrID, CUEType, terraformAttribute)
+			}
+			// it is a set or list of a complex type
+			if (attrTypeItems[0].String() == "list" || attrTypeItems[0].String() == "set") && attrTypeItems[1].Type == gjson.JSON {
+				return formatSetOrListOfComplexObject(attrID, attrTypeItems[1].Array()[1])
+			}
+			log.Fatalf("Unable to emit %q %q: cannot translate type for %q. Received -> %q\n", entityType, entityID, attrID, attrType.String())
+		}
+		log.Fatalf("Unable to emit %q %q: cannot translate type for %q. Received -> %q\n", entityType, entityID, attrID, attrType.String())
+	default:
+		log.Fatalf("Unkown type %q\n", attrType.Type)
+	}
+	return ""
+}
+
+func EmitAttributes(entityID string, entityType string, terraformAttributes gjson.Result) string {
+	output := []string{}
 	terraformAttributes.ForEach(func(attrID, attributes gjson.Result) bool {
 		if attributes.Get("computed").Bool() {
 			return true
 		}
-		var CUEType string
-		attrType := attributes.Get("type")
-		switch attrType.Type {
-		// it is a primitive type
-		case gjson.String:
-			CUEType = attrType.String()
-			output = append(output, formatPrimitiveTypes(attrID.String(), CUEType, attributes))
-		// json schema missing required field
-		case gjson.Null:
-			log.Fatalf("Attribute field not found in %q", attributes.String())
-		// it is a complex type
-		case gjson.JSON:
-			if attrType.IsArray() {
-				attrTypeItems := attrType.Array()
-				if !validType(attrTypeItems) {
-					log.Fatalf("Invalid input for terraform attribute type: %q\n", attrType.String())
-				}
-				// it is a set or list of a primitive type
-				if (attrTypeItems[0].String() == "list" || attrTypeItems[0].String() == "set") && attrTypeItems[1].Type == gjson.String {
-					CUEType = fmt.Sprintf("[...%s]", attrTypeItems[1].String())
-					output = append(output, formatPrimitiveTypes(attrID.String(), CUEType, attributes))
-					return true
-				}
-				// it is a map of a primitive type
-				if attrTypeItems[0].String() == "map" && attrTypeItems[1].Type == gjson.String {
-					CUEType = fmt.Sprintf("[string]: %s", attrTypeItems[1].String())
-					output = append(output, formatPrimitiveTypes(attrID.String(), CUEType, attributes))
-					return true
-				}
-				// it is a set or list of a complex type
-				if (attrTypeItems[0].String() == "list" || attrTypeItems[0].String() == "set") && attrTypeItems[1].Type == gjson.JSON {
-					output = append(output, formatSetOrListOfComplexObject(attrID.String(), attrTypeItems[1].Array()[1]))
-					return true
-				}
-				log.Fatalf("Unable to emit %q %q: cannot translate type for %q. Received -> %q\n", entityType, entityID, attrID.String(), attrType.String())
-			}
-			log.Fatalf("Unable to emit %q %q: cannot translate type for %q. Received -> %q\n", entityType, entityID, attrID.String(), attrType.String())
+		if !attributes.Get("required").Bool() {
 			return true
-		default:
-			log.Fatalf("Unkown type %q\n", attrType.Type)
 		}
+		output = append(output, EmitAttribute(attrID.String(), entityID, entityType, attributes))
 		return true
 	})
-	output = append(output, "}")
+	terraformAttributes.ForEach(func(attrID, attributes gjson.Result) bool {
+		if attributes.Get("computed").Bool() {
+			return true
+		}
+		if !attributes.Get("optional").Bool() {
+			return true
+		}
+		output = append(output, EmitAttribute(attrID.String(), entityID, entityType, attributes))
+		return true
+	})
 	return strings.Join(output, "\n")
 }
 
@@ -114,13 +127,17 @@ func EmitEntities(providerID string, JSONData []byte) string {
 			providerValue.ForEach(func(key, value gjson.Result) bool {
 				if key.String() == "data_source_schemas" {
 					value.ForEach(func(datasourceID, datasourceValue gjson.Result) bool {
-						output = append(output, Emit(datasourceID.String(), "#DataSource", datasourceValue.Get("block").Get("attributes")))
+						output = append(output, fmt.Sprintf("%s: %s: {", datasourceID.String(), "#DataSource"))
+						output = append(output, EmitAttributes(datasourceID.String(), "#DataSource", datasourceValue.Get("block").Get("attributes")))
+						output = append(output, "}")
 						return true
 					})
 				}
 				if key.String() == "resource_schemas" {
-					value.ForEach(func(key, value gjson.Result) bool {
-						output = append(output, Emit(key.String(), "#Resource", value.Get("block").Get("attributes")))
+					value.ForEach(func(resourceID, value gjson.Result) bool {
+						output = append(output, fmt.Sprintf("%s: %s: {", resourceID.String(), "#Resource"))
+						output = append(output, EmitAttributes(resourceID.String(), "#Resource", value.Get("block").Get("attributes")))
+						output = append(output, "}")
 						return true
 					})
 				}
