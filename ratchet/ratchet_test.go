@@ -1,6 +1,7 @@
 package ratchet_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/cueniform/internal-tools/ratchet"
@@ -8,7 +9,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func TestValidTFSChemaVersion_ReturnsTrueGivenKnownVersion(t *testing.T) {
+func TestValidTFSChemaVersion_ReturnsTrueGivenResultStringWithKnownVersion(t *testing.T) {
 	t.Parallel()
 	want := true
 	input := gjson.Result{
@@ -22,7 +23,21 @@ func TestValidTFSChemaVersion_ReturnsTrueGivenKnownVersion(t *testing.T) {
 	}
 }
 
-func TestValidTFSChemaVersion_ReturnsFalseGivenNumber(t *testing.T) {
+func TestValidTFSChemaVersion_ReturnsFalseGivenResultStringWithUnknownVersion(t *testing.T) {
+	t.Parallel()
+	want := false
+	input := gjson.Result{
+		Type: gjson.String,
+		Raw:  "666",
+		Str:  "666",
+	}
+	got := ratchet.ValidTFSchemaVersion(input)
+	if want != got {
+		t.Fatalf("want valid %t, got %t", want, got)
+	}
+}
+
+func TestValidTFSChemaVersion_ReturnsFalseGivenResultNumber(t *testing.T) {
 	t.Parallel()
 	want := false
 	input := gjson.Result{
@@ -34,7 +49,7 @@ func TestValidTFSChemaVersion_ReturnsFalseGivenNumber(t *testing.T) {
 	}
 }
 
-func TestValidTFSChemaVersion_ReturnsFalseGivenFalse(t *testing.T) {
+func TestValidTFSChemaVersion_ReturnsFalseGivenResultFalse(t *testing.T) {
 	t.Parallel()
 	want := false
 	input := gjson.Result{
@@ -46,7 +61,7 @@ func TestValidTFSChemaVersion_ReturnsFalseGivenFalse(t *testing.T) {
 	}
 }
 
-func TestValidTFSChemaVersion_ReturnsFalseGivenTrue(t *testing.T) {
+func TestValidTFSChemaVersion_ReturnsFalseGivenResultTrue(t *testing.T) {
 	t.Parallel()
 	want := false
 	input := gjson.Result{
@@ -58,7 +73,7 @@ func TestValidTFSChemaVersion_ReturnsFalseGivenTrue(t *testing.T) {
 	}
 }
 
-func TestValidTFSChemaVersion_ReturnsFalseGivenNull(t *testing.T) {
+func TestValidTFSChemaVersion_ReturnsFalseGivenResultNull(t *testing.T) {
 	t.Parallel()
 	want := false
 	input := gjson.Result{
@@ -70,7 +85,7 @@ func TestValidTFSChemaVersion_ReturnsFalseGivenNull(t *testing.T) {
 	}
 }
 
-func TestValidTFSChemaVersion_ReturnsFalseGivenJSON(t *testing.T) {
+func TestValidTFSChemaVersion_ReturnsFalseGivenResultJSON(t *testing.T) {
 	t.Parallel()
 	want := false
 	input := gjson.Result{
@@ -82,7 +97,7 @@ func TestValidTFSChemaVersion_ReturnsFalseGivenJSON(t *testing.T) {
 	}
 }
 
-func TestValidTFSChemaVersion_ReturnsFalseGivenUnkownType(t *testing.T) {
+func TestValidTFSChemaVersion_ReturnsFalseGivenUnkownResultType(t *testing.T) {
 	t.Parallel()
 	want := false
 	input := gjson.Result{
@@ -94,143 +109,18 @@ func TestValidTFSChemaVersion_ReturnsFalseGivenUnkownType(t *testing.T) {
 	}
 }
 
-func TestConvertTerraformType_ReturnsExpectedStringGivenString(t *testing.T) {
-	t.Parallel()
-	want := "string"
-	got, err := ratchet.ConvertTerraformType(gjson.Result{
-		Type: gjson.String,
-		Raw:  `"string"`,
-		Str:  "string",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want != got {
-		t.Fatalf("want %q, got %q", want, got)
-	}
-}
-
-func TestConvertTerraformType_ReturnsExpectedStringGivenNumber(t *testing.T) {
-	t.Parallel()
-	want := "number"
-	got, err := ratchet.ConvertTerraformType(gjson.Result{
-		Type: gjson.String,
-		Raw:  `"number"`,
-		Str:  "number",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want != got {
-		t.Fatalf("want %q, got %q", want, got)
-	}
-}
-
-func TestConvertTerraformType_ReturnsExpectedStringGivenListString(t *testing.T) {
-	t.Parallel()
-	want := "[...string]"
-	got, err := ratchet.ConvertTerraformType(gjson.Result{
-		Type: gjson.JSON,
-		Raw:  `["list", "string"]`,
-		Str:  `["list", "string"]`,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want != got {
-		t.Fatalf("want %q, got %q", want, got)
-	}
-}
-
-func TestConvertTerraformType_ReturnsExpectedStringGivenSetString(t *testing.T) {
-	t.Parallel()
-	want := "[...string]"
-	got, err := ratchet.ConvertTerraformType(gjson.Result{
-		Type: gjson.JSON,
-		Raw:  `["set", "string"]`,
-		Str:  `["set", "string"]`,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want != got {
-		t.Fatalf("want %q, got %q", want, got)
-	}
-}
-
-func TestConvertTerraformType_ReturnsExpectedStringGivenListBool(t *testing.T) {
-	t.Parallel()
-	want := "[...bool]"
-	got, err := ratchet.ConvertTerraformType(gjson.Result{
-		Type: gjson.JSON,
-		Raw:  `["list", "bool"]`,
-		Str:  `["list", "bool"]`,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want != got {
-		t.Fatalf("want %q, got %q", want, got)
-	}
-}
-
-func TestConvertTerraformType_ErrorsGivenListWithThreeItems(t *testing.T) {
-	t.Parallel()
-	_, err := ratchet.ConvertTerraformType(gjson.Result{
-		Type: gjson.JSON,
-		Raw:  `["a", "b", "c"]`,
-		Str:  `["a", "b", "c"]`,
-	})
-	if err == nil {
-		t.Fatal("want error but got nil")
-	}
-}
-
-func TestEmitEntities_ReturnsExpectedStringGivenDataSourceWithBasicAttribute(t *testing.T) {
-	t.Parallel()
-	want := `bogus: #DataSource: {
-    bogus: string
-}`
-	inputJSON := []byte(`{
-  "format_version": "1.0",
-  "provider_schemas": {
-    "bogus": {
-      "data_source_schemas": {
-        "bogus": {
-          "version": 0,
-          "block": {
-            "attributes": {
-              "bogus": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}`)
-	got := ratchet.EmitEntities("bogus", inputJSON)
-	if !cmp.Equal(want, got) {
-		t.Fatal(cmp.Diff(want, got))
-	}
-}
-
 func TestEmitEntities_SkipsItemsWithComputedTrue(t *testing.T) {
 	t.Parallel()
 	want := `bogus: #DataSource: {
 }`
 	inputJSON := []byte(`{
-  "format_version": "1.0",
   "provider_schemas": {
     "bogus": {
       "data_source_schemas": {
         "bogus": {
-          "version": 0,
           "block": {
             "attributes": {
               "bogus": {
-                "type": "string"
 				"computed": true
               }
             }
@@ -252,12 +142,10 @@ func TestEmitEntities_ReturnsExpectedStringGivenDataSourceWithRequiredAttribute(
     bogus!: string
 }`
 	inputJSON := []byte(`{
-  "format_version": "1.0",
   "provider_schemas": {
     "bogus": {
       "data_source_schemas": {
         "bogus": {
-          "version": 0,
           "block": {
             "attributes": {
               "bogus": {
@@ -283,12 +171,10 @@ func TestEmitEntities_ReturnsExpectedStringGivenDataSourceWithOptionalAttribute(
     bogus?: string
 }`
 	inputJSON := []byte(`{
-  "format_version": "1.0",
   "provider_schemas": {
     "bogus": {
       "data_source_schemas": {
         "bogus": {
-          "version": 0,
           "block": {
             "attributes": {
               "bogus": {
@@ -308,22 +194,42 @@ func TestEmitEntities_ReturnsExpectedStringGivenDataSourceWithOptionalAttribute(
 	}
 }
 
-func TestEmitEntities_ReturnsExpectedStringGivenResource(t *testing.T) {
-	t.Parallel()
-	want := `bogus: #Resource: {
-    bogus: string
-}`
-	inputJSON := []byte(`{
-  "format_version": "1.0",
+func TestEmitEntities_ReturnsExpectedStringGivenResourceWithPrimitiveTypes(t *testing.T) {
+	testCases := []struct {
+		desc     string
+		rawInput string
+		want     string
+	}{
+		{
+			desc:     "String",
+			rawInput: `"string"`,
+			want:     "string",
+		},
+		{
+			desc:     "Number",
+			rawInput: `"number"`,
+			want:     "number",
+		},
+		{
+			desc:     "Boolean",
+			rawInput: `"bool"`,
+			want:     "bool",
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			wantTmpl := "bogus: #Resource: {\n    bogus!: %s\n}"
+			want := fmt.Sprintf(wantTmpl, tC.want)
+			inputTmpl := `{
   "provider_schemas": {
     "bogus": {
       "resource_schemas": {
         "bogus": {
-          "version": 0,
           "block": {
             "attributes": {
               "bogus": {
-                "type": "string"
+                "type": %s,
+				"required": true
               }
             }
           }
@@ -331,33 +237,105 @@ func TestEmitEntities_ReturnsExpectedStringGivenResource(t *testing.T) {
       }
     }
   }
-}`)
-	got := ratchet.EmitEntities("bogus", inputJSON)
-	if !cmp.Equal(want, got) {
-		t.Fatal(cmp.Diff(want, got))
+}`
+			inputJSON := []byte(fmt.Sprintf(inputTmpl, tC.rawInput))
+			got := ratchet.EmitEntities("bogus", inputJSON)
+			if !cmp.Equal(want, got) {
+				t.Fatal(cmp.Diff(want, got))
+			}
+		})
+	}
+}
+
+func TestEmitEntities_ReturnsExpectedStringGivenResourceWithSetListAndMapOfPrimitiveTypes(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		desc     string
+		rawInput string
+		want     string
+	}{
+		{
+			desc:     "List of string",
+			rawInput: `["list", "string"]`,
+			want:     "[...string]",
+		},
+		{
+			desc:     "List of number",
+			rawInput: `["list", "number"]`,
+			want:     "[...number]",
+		},
+		{
+			desc:     "Set of string",
+			rawInput: `["set", "string"]`,
+			want:     "[...string]",
+		},
+		{
+			desc:     "Set of number",
+			rawInput: `["set", "number"]`,
+			want:     "[...number]",
+		},
+		{
+			desc:     "Map of string",
+			rawInput: `["map", "string"]`,
+			want:     "[string]: string",
+		},
+		{
+			desc:     "Map of number",
+			rawInput: `["map", "number"]`,
+			want:     "[string]: number",
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			wantTmpl := "bogus: #Resource: {\n    bogus!: %s\n}"
+			want := fmt.Sprintf(wantTmpl, tC.want)
+			inputTmpl := `{
+  "provider_schemas": {
+    "bogus": {
+      "resource_schemas": {
+        "bogus": {
+          "block": {
+            "attributes": {
+              "bogus": {
+                "type": %s,
+				"required": true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`
+			inputJSON := []byte(fmt.Sprintf(inputTmpl, tC.rawInput))
+			got := ratchet.EmitEntities("bogus", inputJSON)
+			if !cmp.Equal(want, got) {
+				t.Fatal(cmp.Diff(want, got))
+			}
+		})
 	}
 }
 
 func TestEmitEntities_ReturnsExpectedEntityGivenDataSourceWithTwoAttributes(t *testing.T) {
 	t.Parallel()
 	want := `bogus: #DataSource: {
-    foo: string
-    bar: number
+    foo?: string
+    bar?: number
 }`
 	inputJSON := []byte(`{
-  "format_version": "1.0",
   "provider_schemas": {
     "bogus": {
       "data_source_schemas": {
         "bogus": {
-          "version": 0,
           "block": {
             "attributes": {
               "foo": {
-                "type": "string"
+                "type": "string",
+				"optional": true
               },
 			  "bar": {
-                "type": "number"
+                "type": "number",
+				"optional": true
               }
             }
           }
@@ -375,32 +353,31 @@ func TestEmitEntities_ReturnsExpectedEntityGivenDataSourceWithTwoAttributes(t *t
 func TestEmitEntities_ReturnsExpectedEntitiesGivenTwoDataSources(t *testing.T) {
 	t.Parallel()
 	want := `data_source1: #DataSource: {
-    bogus: string
+    bogus!: string
 }
 data_source2: #DataSource: {
-    bogus: string
+    bogus!: string
 }`
 	inputJSON := []byte(`{
-  "format_version": "1.0",
   "provider_schemas": {
     "bogus": {
       "data_source_schemas": {
         "data_source1": {
-          "version": 0,
           "block": {
             "attributes": {
               "bogus": {
-                "type": "string"
+                "type": "string",
+				"required" true
               }
             }
           }
         },
 		"data_source2": {
-          "version": 0,
           "block": {
             "attributes": {
               "bogus": {
                 "type": "string"
+				"required" true
               }
             }
           }
@@ -415,22 +392,20 @@ data_source2: #DataSource: {
 	}
 }
 
-func TestEmitEntities_ReturnsExpectedEntityGivenDataSourceWithObject(t *testing.T) {
+func TestEmitEntities_ReturnsExpectedEntityGivenDataSourceWithComplexObject(t *testing.T) {
 	t.Parallel()
 	want := `bogus: #DataSource: {
     myComplexObj: [..._#myComplexObj]
     _#myComplexObj: {
-        field1: string
-        field2: string
+        field1!: string
+        field2!: string
     }
 }`
 	inputJSON := []byte(`{
-  "format_version": "1.0",
   "provider_schemas": {
     "bogus": {
       "data_source_schemas": {
         "bogus": {
-          "version": 0,
           "block": {
             "attributes": {
               "myComplexObj": {
