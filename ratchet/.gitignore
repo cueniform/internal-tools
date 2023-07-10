@@ -2,8 +2,3 @@
 schemata
 output/*
 build/*
-
-# Mac meta files
-.DS_Store
-
-!.gitkeep
