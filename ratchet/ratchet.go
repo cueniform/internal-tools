@@ -3,6 +3,7 @@ package ratchet
 import (
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/tidwall/gjson"
@@ -147,4 +148,19 @@ func EmitEntities(providerID string, JSONData []byte) string {
 		return true
 	})
 	return strings.Join(output, "\n")
+}
+
+func Main() int {
+	if len(os.Args) < 3 {
+		fmt.Fprintf(os.Stderr, "Usage: %s [terraform-provider-schema.json] [provider_address]\n", os.Args[0])
+		return 1
+	}
+	JSONData, err := os.ReadFile(os.Args[1])
+	if err != nil {
+		fmt.Println(err)
+		return 1
+	}
+	CUESchema := EmitEntities(os.Args[2], JSONData)
+	fmt.Println(CUESchema)
+	return 0
 }

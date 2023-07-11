@@ -2,12 +2,26 @@ package ratchet_test
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/cueniform/internal-tools/ratchet"
 	"github.com/google/go-cmp/cmp"
+	"github.com/rogpeppe/go-internal/testscript"
 	"github.com/tidwall/gjson"
 )
+
+func TestScript(t *testing.T) {
+	testscript.Run(t, testscript.Params{
+		Dir: "testdata/script",
+	})
+}
+
+func TestMain(m *testing.M) {
+	os.Exit(testscript.RunMain(m, map[string]func() int{
+		"ratchet": ratchet.Main,
+	}))
+}
 
 func TestValidTFSChemaVersion_ReturnsTrueGivenResultStringWithKnownVersion(t *testing.T) {
 	t.Parallel()
