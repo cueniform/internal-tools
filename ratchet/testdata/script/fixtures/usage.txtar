@@ -1,0 +1,3 @@
+! ratchet
+! stdout .
+stderr 'Usage: ratchet \[terraform-provider-schema.json\] \[provider_address\]'

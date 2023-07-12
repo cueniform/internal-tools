@@ -22,15 +22,3 @@ jobs:
       - name: Race detection
         run: go test -race ./...
         working-directory: ratchet
-  ratchet-integration:
-    runs-on: "ubuntu-latest"
-    name: Integration Testing
-    steps:
-      - uses: actions/checkout@v3
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version-file: "go.mod"
-      - name: Integration
-        run: make test
-        working-directory: ratchet

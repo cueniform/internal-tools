@@ -8,15 +8,15 @@ schemata/%.json.zst:
 build/%.json: schemata/%.json.zst
 	zstdcat "$^" >"$@"
 
-output/%.cue: ADDRESS=$(shell echo "$*" | tr '_' '/' | cut -d/ -f1-3)
-output/%.cue: build/%.json
-	go run cmd/ratchet/main.go "$^" $(ADDRESS) >"$@"
+testdata/script/unit/datasources/%.txtar.tmp: SOURCE=$(shell echo "$@" | sed -e "s/datasources/resources/" -e "s/.tmp//")
+testdata/script/unit/datasources/%.txtar.tmp:
+	cp $(SOURCE) "$@"
 
-.PHONY: clean
-clean:
-	rm -v output/*.cue build/*.json schemata/*.json.zst || true
-
-.PHONY: test
-test: clean 
-test: output/registry.terraform.io_integrations_github_5.9.2.cue
-test: output/registry.terraform.io_hashicorp_aws_5.6.1.cue
+testdata/script/unit/datasources/%.txtar: SOURCE=$(shell echo "$@" | sed "s/datasources/resources/")
+testdata/script/unit/datasources/%.txtar: testdata/script/unit/datasources/%.txtar.tmp
+	sed \
+	-e "s/resource_id/datasource_id/" \
+	-e "s/#Resource/#DataSource/" \
+	-e "s/resource_schemas/data_source_schemas/" \
+	"$^" >"$@"
+	rm "$^" # Pending to understand why the file is not being deleted automatically

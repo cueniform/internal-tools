@@ -4,19 +4,11 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/tidwall/gjson"
 )
-
-func ValidTFSchemaVersion(schemaVersion gjson.Result) bool {
-	switch schemaVersion.Type {
-	case gjson.String:
-		return schemaVersion.String() == "1.0"
-	default:
-		return false
-	}
-}
 
 func formatPrimitiveTypes(key, value string, typeAttributes gjson.Result) string {
 	var output string
@@ -98,26 +90,39 @@ func EmitAttribute(attrID string, entityID string, entityType string, terraformA
 
 func EmitAttributes(entityID string, entityType string, terraformAttributes gjson.Result) string {
 	output := []string{}
-	terraformAttributes.ForEach(func(attrID, attributes gjson.Result) bool {
-		if attributes.Get("computed").Bool() {
+	required := map[string]gjson.Result{}
+	optional := map[string]gjson.Result{}
+	terraformAttributes.ForEach(func(attrID, terraformAttribute gjson.Result) bool {
+		if terraformAttribute.Get("computed").Bool() {
 			return true
 		}
-		if !attributes.Get("required").Bool() {
+		if terraformAttribute.Get("required").Bool() {
+			required[attrID.String()] = terraformAttribute
 			return true
 		}
-		output = append(output, EmitAttribute(attrID.String(), entityID, entityType, attributes))
+		if terraformAttribute.Get("optional").Bool() {
+			optional[attrID.String()] = terraformAttribute
+			return true
+		}
+		log.Fatalf("Attribute %q is neither required or optional", attrID)
 		return true
 	})
-	terraformAttributes.ForEach(func(attrID, attributes gjson.Result) bool {
-		if attributes.Get("computed").Bool() {
-			return true
-		}
-		if !attributes.Get("optional").Bool() {
-			return true
-		}
-		output = append(output, EmitAttribute(attrID.String(), entityID, entityType, attributes))
-		return true
-	})
+	keys := make([]string, 0, len(required))
+	for k := range required {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	for _, key := range keys {
+		output = append(output, EmitAttribute(key, entityID, entityType, required[key]))
+	}
+	keys = make([]string, 0, len(optional))
+	for k := range optional {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	for _, key := range keys {
+		output = append(output, EmitAttribute(key, entityID, entityType, optional[key]))
+	}
 	return strings.Join(output, "\n")
 }
 
@@ -157,7 +162,7 @@ func Main() int {
 	}
 	JSONData, err := os.ReadFile(os.Args[1])
 	if err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 	CUESchema := EmitEntities(os.Args[2], JSONData)
