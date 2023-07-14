@@ -17,7 +17,7 @@ func TestRatchetEmitResourcesEntities(t *testing.T) {
 
 func TestRatchetEmitDataSourcesEntities(t *testing.T) {
 	testscript.Run(t, testscript.Params{
-		Dir: "testdata/script/unit/datasources",
+		Dir: "testdata/script/unit/data_sources",
 		// UpdateScripts: highly discouraged here,
 	})
 }

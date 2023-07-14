@@ -1,9 +1,19 @@
 #!/bin/sh -e
 
-for SRC_FILE in $(ls testdata/script/unit/resources/*.txtar); 
-do 
-    DEST_FILE=$(echo $SRC_FILE | sed "s/resources/datasources/")
-    rm $DEST_FILE
-    make $DEST_FILE
+src_dir="testdata/script/unit/entities"
+for type_camel in Resource DataSource;
+do
+    if [[ "${type_camel}" == "Resource" ]]; then
+        type_lower="resource"
+    elif [[ "${type_camel}" == "DataSource" ]]; then
+        type_lower="data_source"
+    fi
+    dest_dir="testdata/script/unit/${type_lower}s"
+    rm -vf "${dest_dir}"/*.common.txtar
+    cp -v "${src_dir}"/*.common.txtar "${dest_dir}"/
+    sed -i.bak \
+        -e "s/ENTITY_LOWERCASE/${type_lower}/" \
+        -e "s/ENTITY_CAMELCASE/${type_camel}/" \
+        ${dest_dir}/*.common.txtar
+    rm -vf "${dest_dir}"/*.common.txtar.bak
 done
-rm -v testdata/script/unit/datasources/*given*block*.txtar

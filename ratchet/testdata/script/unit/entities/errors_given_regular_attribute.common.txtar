@@ -1,0 +1,21 @@
+! ratchet input.json provider.registry/provider_name
+! stdout .
+stderr 'Attribute "regular_attr" is neither required or optional'
+-- input.json --
+{
+  "provider_schemas": {
+    "provider.registry/provider_name": {
+      "ENTITY_LOWERCASE_schemas": {
+        "entity_id": {
+          "block": {
+            "attributes": {
+              "regular_attr": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

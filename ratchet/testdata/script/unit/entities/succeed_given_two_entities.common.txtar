@@ -1,0 +1,38 @@
+ratchet input.json provider.registry/provider_name
+cmp stdout GOLDEN/output.cue
+-- GOLDEN/output.cue --
+entity_id1: #ENTITY_CAMELCASE: {
+    attribute_id!: string
+}
+entity_id2: #ENTITY_CAMELCASE: {
+    attribute_id!: string
+}
+-- input.json --
+{
+  "provider_schemas": {
+    "provider.registry/provider_name": {
+      "ENTITY_LOWERCASE_schemas": {
+        "entity_id1": {
+          "block": {
+            "attributes": {
+              "attribute_id": {
+                "type": "string",
+                "required" true // paperwork - all attributes needs to be either required or optional
+              }
+            }
+          }
+        },
+        "entity_id2": {
+          "block": {
+            "attributes": {
+              "attribute_id": {
+                "type": "string"
+                "required" true // paperwork - all attributes needs to be either required or optional
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
