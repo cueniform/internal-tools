@@ -13,7 +13,7 @@ entity_id: #ENTITY_CAMELCASE: {
           "block": {
             "attributes": {
               "attribute_id": {
-                "type": "bogus",
+                "type": "string",
                 "optional": true
               }
             }

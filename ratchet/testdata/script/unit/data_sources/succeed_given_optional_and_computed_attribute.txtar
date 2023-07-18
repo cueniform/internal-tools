@@ -3,7 +3,7 @@ cmp stdout GOLDEN/output.cue
 -- GOLDEN/output.cue --
 entity_id: {
 	#DataSource: {
-		attribute_id!: string
+		attribute_id?: string
 	}
 }
 -- input.json --
@@ -16,7 +16,8 @@ entity_id: {
             "attributes": {
               "attribute_id": {
                 "type": "string",
-                "required": true
+                "optional": true,
+                "computed": true,
               }
             }
           }

@@ -1,6 +1,6 @@
 ! ratchet input.json provider.registry/provider_name
 ! stdout .
-stderr 'Attribute "regular_attr" is neither required or optional'
+stderr 'Attribute "regular_attr" is neither required nor optional'
 -- input.json --
 {
   "provider_schemas": {

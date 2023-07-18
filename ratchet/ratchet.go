@@ -107,7 +107,7 @@ func EmitDatasources(entityID string, terraformAttributes gjson.Result) string {
 		if terraformAttribute.Get("computed").Bool() {
 			return true
 		}
-		log.Fatalf("Attribute %q is neither required or optional: %v", attrID, terraformAttribute)
+		log.Fatalf("(datasource) %s: Attribute %q is neither required nor optional: %v", entityID, attrID, terraformAttribute)
 		return true
 	})
 	keys := make([]string, 0, len(required))
@@ -146,7 +146,7 @@ func EmitResources(resourceID string, terraformBlock gjson.Result) string {
 				optional[attrID.String()] = terraformAttribute
 				return true
 			}
-			log.Fatalf("Attribute %q is neither required or optional: %v", attrID, terraformAttribute)
+			log.Fatalf("(resource) %s: Attribute %q is neither required nor optional: %v", resourceID, attrID, terraformAttribute)
 			return false
 		})
 	}
@@ -189,7 +189,7 @@ func EmitBlocks(entityID string, blocks gjson.Result) string {
 				if terraformAttribute.Get("computed").Bool() {
 					return true
 				}
-				log.Fatalf("Attribute %q is neither required or optional: %v", attrID, terraformAttribute)
+				log.Fatalf("(block) %s: Attribute %q is neither required nor optional: %v", entityID, attrID, terraformAttribute)
 				return false
 			})
 		}
