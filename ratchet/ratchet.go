@@ -15,23 +15,23 @@ func formatPrimitiveTypes(key, value string, typeAttributes gjson.Result) string
 	var output string
 	switch {
 	case typeAttributes.Get("required").Bool():
-		output = fmt.Sprintf("    %s!: %s", key, value)
+		output = fmt.Sprintf("%s!: %s", key, value)
 	case typeAttributes.Get("optional").Bool():
-		output = fmt.Sprintf("    %s?: %s", key, value)
+		output = fmt.Sprintf("%s?: %s", key, value)
 	default:
-		log.Fatalf("Attribute %q is neither required or optional", key)
+		log.Fatalf("Attribute %q is neither required or optional: %v", key, typeAttributes)
 	}
 	return output
 }
 
 func formatSetOrListOfComplexObject(key string, objFields gjson.Result) string {
-	output := []string{fmt.Sprintf("    %s: [..._#%s]", key, key)}
-	output = append(output, fmt.Sprintf("    _#%s: {", key))
+	output := []string{fmt.Sprintf("%s: [..._#%s]", key, key)}
+	output = append(output, fmt.Sprintf("_#%s: {", key))
 	objFields.ForEach(func(key, value gjson.Result) bool {
-		output = append(output, fmt.Sprintf("        %s!: %s", key, value.String()))
+		output = append(output, fmt.Sprintf("%s!: %s", key, value.String()))
 		return true
 	})
-	output = append(output, "    }")
+	output = append(output, "}")
 	return strings.Join(output, "\n")
 }
 
@@ -56,9 +56,11 @@ func EmitAttribute(attrID string, entityID string, entityType string, terraformA
 	case gjson.String:
 		CUEType = attrType.String()
 		return formatPrimitiveTypes(attrID, CUEType, terraformAttribute)
-	// json schema missing required field
+	// json schema missing required field.
 	case gjson.Null:
-		log.Fatalf("Attribute field not found in %q", terraformAttribute.String())
+		// if it happens means that cue vet did not run
+		// or there is a bug in the schema validation
+		log.Fatalf("BUG (validator): Attribute field not found in %q.", terraformAttribute.String())
 	// it is a complex type
 	case gjson.JSON:
 		if attrType.IsArray() {
@@ -89,14 +91,11 @@ func EmitAttribute(attrID string, entityID string, entityType string, terraformA
 	return ""
 }
 
-func EmitAttributes(entityID string, entityType string, terraformAttributes gjson.Result) string {
+func EmitDatasources(entityID string, terraformAttributes gjson.Result) string {
 	output := []string{}
 	required := map[string]gjson.Result{}
 	optional := map[string]gjson.Result{}
 	terraformAttributes.ForEach(func(attrID, terraformAttribute gjson.Result) bool {
-		if terraformAttribute.Get("computed").Bool() {
-			return true
-		}
 		if terraformAttribute.Get("required").Bool() {
 			required[attrID.String()] = terraformAttribute
 			return true
@@ -105,7 +104,10 @@ func EmitAttributes(entityID string, entityType string, terraformAttributes gjso
 			optional[attrID.String()] = terraformAttribute
 			return true
 		}
-		log.Fatalf("Attribute %q is neither required or optional", attrID)
+		if terraformAttribute.Get("computed").Bool() {
+			return true
+		}
+		log.Fatalf("Attribute %q is neither required or optional: %v", attrID, terraformAttribute)
 		return true
 	})
 	keys := make([]string, 0, len(required))
@@ -114,7 +116,7 @@ func EmitAttributes(entityID string, entityType string, terraformAttributes gjso
 	}
 	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
 	for _, key := range keys {
-		output = append(output, EmitAttribute(key, entityID, entityType, required[key]))
+		output = append(output, EmitAttribute(key, entityID, "#DataSource", required[key]))
 	}
 	keys = make([]string, 0, len(optional))
 	for k := range optional {
@@ -122,8 +124,81 @@ func EmitAttributes(entityID string, entityType string, terraformAttributes gjso
 	}
 	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
 	for _, key := range keys {
-		output = append(output, EmitAttribute(key, entityID, entityType, optional[key]))
+		output = append(output, EmitAttribute(key, entityID, "#DataSource", optional[key]))
 	}
+	return strings.Join(output, "\n")
+}
+
+func EmitResources(resourceID string, terraformBlock gjson.Result) string {
+	output := []string{}
+	required := map[string]gjson.Result{}
+	optional := map[string]gjson.Result{}
+	if terraformBlock.Get("attributes").Exists() {
+		terraformBlock.Get("attributes").ForEach(func(attrID, terraformAttribute gjson.Result) bool {
+			if terraformAttribute.Get("computed").Bool() {
+				return true
+			}
+			if terraformAttribute.Get("required").Bool() {
+				required[attrID.String()] = terraformAttribute
+				return true
+			}
+			if terraformAttribute.Get("optional").Bool() {
+				optional[attrID.String()] = terraformAttribute
+				return true
+			}
+			log.Fatalf("Attribute %q is neither required or optional: %v", attrID, terraformAttribute)
+			return false
+		})
+	}
+	keys := make([]string, 0, len(required))
+	for k := range required {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	for _, key := range keys {
+		output = append(output, EmitAttribute(key, resourceID, "#Resource", required[key]))
+	}
+	keys = make([]string, 0, len(optional))
+	for k := range optional {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	for _, key := range keys {
+		output = append(output, EmitAttribute(key, resourceID, "#Resource", optional[key]))
+	}
+	if terraformBlock.Get("block_types").Exists() {
+		output = append(output, EmitBlocks(resourceID, terraformBlock.Get("block_types")))
+	}
+	return strings.Join(output, "\n")
+}
+
+func EmitBlocks(entityID string, blocks gjson.Result) string {
+	output := []string{}
+	blocks.ForEach(func(blockID, value gjson.Result) bool {
+		output = append(output, fmt.Sprintf("%s?: {", blockID.String()))
+		if value.Get("block").Get("attributes").Exists() {
+			value.Get("block").Get("attributes").ForEach(func(attrID, terraformAttribute gjson.Result) bool {
+				if terraformAttribute.Get("required").Bool() {
+					output = append(output, EmitAttribute(attrID.String(), entityID, "#Resource", terraformAttribute))
+					return true
+				}
+				if terraformAttribute.Get("optional").Bool() {
+					output = append(output, EmitAttribute(attrID.String(), entityID, "#Resource", terraformAttribute))
+					return true
+				}
+				if terraformAttribute.Get("computed").Bool() {
+					return true
+				}
+				log.Fatalf("Attribute %q is neither required or optional: %v", attrID, terraformAttribute)
+				return false
+			})
+		}
+		if value.Get("block").Get("block_types").Exists() {
+			output = append(output, EmitBlocks(entityID, value.Get("block").Get("block_types")))
+		}
+		output = append(output, "}")
+		return true
+	})
 	return strings.Join(output, "\n")
 }
 
@@ -135,7 +210,9 @@ func EmitEntities(providerID string, JSONData []byte) string {
 				if key.String() == "data_source_schemas" {
 					value.ForEach(func(datasourceID, datasourceValue gjson.Result) bool {
 						output = append(output, fmt.Sprintf("%s: %s: {", datasourceID.String(), "#DataSource"))
-						output = append(output, EmitAttributes(datasourceID.String(), "#DataSource", datasourceValue.Get("block").Get("attributes")))
+						if datasourceValue.Get("block").Get("attributes").Exists() {
+							output = append(output, EmitDatasources(datasourceID.String(), datasourceValue.Get("block").Get("attributes")))
+						}
 						output = append(output, "}")
 						return true
 					})
@@ -143,7 +220,9 @@ func EmitEntities(providerID string, JSONData []byte) string {
 				if key.String() == "resource_schemas" {
 					value.ForEach(func(resourceID, value gjson.Result) bool {
 						output = append(output, fmt.Sprintf("%s: %s: {", resourceID.String(), "#Resource"))
-						output = append(output, EmitAttributes(resourceID.String(), "#Resource", value.Get("block").Get("attributes")))
+						if value.Get("block").Exists() {
+							output = append(output, EmitResources(resourceID.String(), value.Get("block")))
+						}
 						output = append(output, "}")
 						return true
 					})
