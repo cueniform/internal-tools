@@ -1,9 +1,11 @@
 ratchet input.json provider.registry/provider_name
 cmp stdout GOLDEN/output.cue
 -- GOLDEN/output.cue --
-entity_id: #DataSource: {
-    required!: number
-    optional?: string
+entity_id: {
+	#DataSource: {
+		required!: number
+		optional?: string
+	}
 }
 -- input.json --
 {

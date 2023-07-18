@@ -1,9 +1,7 @@
 ratchet input.json provider.registry/provider_name
 cmp stdout GOLDEN/output.cue
 -- GOLDEN/output.cue --
-entity_id: #Resource: {
-    attribute_id?: bogus
-}
+_|_ // reference "bogus" not found
 -- input.json --
 {
   "provider_schemas": {

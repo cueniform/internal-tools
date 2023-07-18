@@ -1,12 +1,14 @@
 ratchet input.json provider.registry/provider_name
 cmp stdout GOLDEN/output.cue
 -- GOLDEN/output.cue --
-entity_id: #DataSource: {
-    myComplexObj: [..._#myComplexObj]
-    _#myComplexObj: {
-        attribute_id1!: string
-        attribute_id2!: string
-    }
+entity_id: {
+	#DataSource: {
+		myComplexObj: [..._#myComplexObj]
+		_#myComplexObj: {
+			attribute_id1!: string
+			attribute_id2!: string
+		}
+	}
 }
 -- input.json --
 {

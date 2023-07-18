@@ -1,8 +1,8 @@
 ratchet input.json provider.registry/provider_name
 cmp stdout GOLDEN/output.cue
 -- GOLDEN/output.cue --
-entity_id: #Resource: {
-
+entity_id: {
+	#Resource: {}
 }
 -- input.json --
 {

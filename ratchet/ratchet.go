@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/tidwall/gjson"
 )
 
@@ -166,6 +167,7 @@ func Main() int {
 		return 1
 	}
 	CUESchema := EmitEntities(os.Args[2], JSONData)
-	fmt.Println(CUESchema)
+	ctx := cuecontext.New()
+	fmt.Printf("%#v\n", ctx.CompileString(CUESchema))
 	return 0
 }
