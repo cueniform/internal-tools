@@ -16,6 +16,14 @@ github_actions_organization_permissions: {
 	#Resource: {
 		enabled_repositories!: string
 		allowed_actions?:      string
+		allowed_actions_config?: {
+			github_owned_allowed!: bool
+			patterns_allowed?: [...string]
+			verified_allowed?: bool
+		}
+		enabled_repositories_config?: {
+			repository_ids!: [...number]
+		}
 	}
 }
 github_actions_organization_secret: {
@@ -38,6 +46,11 @@ github_actions_repository_permissions: {
 		repository!:      string
 		allowed_actions?: string
 		enabled?:         bool
+		allowed_actions_config?: {
+			github_owned_allowed!: bool
+			patterns_allowed?: [...string]
+			verified_allowed?: bool
+		}
 	}
 }
 github_actions_runner_group: {
@@ -70,6 +83,7 @@ github_branch: {
 	#DataSource: {
 		branch!:     string
 		repository!: string
+		id?:         string
 	}
 }
 github_branch_default: {
@@ -90,6 +104,18 @@ github_branch_protection: {
 		require_conversation_resolution?: bool
 		require_signed_commits?:          bool
 		required_linear_history?:         bool
+		required_pull_request_reviews?: {
+			dismiss_stale_reviews?: bool
+			dismissal_restrictions?: [...string]
+			pull_request_bypassers?: [...string]
+			require_code_owner_reviews?:      bool
+			required_approving_review_count?: number
+			restrict_dismissals?:             bool
+		}
+		required_status_checks?: {
+			contexts?: [...string]
+			strict?: bool
+		}
 	}
 }
 github_branch_protection_v3: {
@@ -99,6 +125,24 @@ github_branch_protection_v3: {
 		enforce_admins?:                  bool
 		require_conversation_resolution?: bool
 		require_signed_commits?:          bool
+		required_pull_request_reviews?: {
+			dismiss_stale_reviews?: bool
+			dismissal_teams?: [...string]
+			dismissal_users?: [...string]
+			include_admins?:                  bool
+			require_code_owner_reviews?:      bool
+			required_approving_review_count?: number
+		}
+		required_status_checks?: {
+			contexts?: [...string]
+			include_admins?: bool
+			strict?:         bool
+		}
+		restrictions?: {
+			apps?: [...string]
+			teams?: [...string]
+			users?: [...string]
+		}
 	}
 }
 github_dependabot_organization_secret: {
@@ -155,6 +199,7 @@ github_membership: {
 	}
 	#DataSource: {
 		username!:     string
+		id?:           string
 		organization?: string
 	}
 }
@@ -204,6 +249,12 @@ github_organization_webhook: {
 		events!: [...string]
 		active?: bool
 		name?:   string
+		configuration?: {
+			content_type?: string
+			insecure_ssl?: bool
+			secret?:       string
+			url!:          string
+		}
 	}
 }
 github_project_card: {
@@ -248,10 +299,36 @@ github_repository: {
 		squash_merge_commit_title?:               string
 		topics?: [...string]
 		vulnerability_alerts?: bool
+		pages?: {
+			cname?: string
+			source?: {
+				branch!: string
+				path?:   string
+			}
+		}
+		security_and_analysis?: {
+			advanced_security?: {
+				status!: string
+			}
+			secret_scanning?: {
+				status!: string
+			}
+			secret_scanning_push_protection?: {
+				status!: string
+			}
+		}
+		template?: {
+			include_all_branches?: bool
+			owner!:                string
+			repository!:           string
+		}
 	}
 	#DataSource: {
 		description?:  string
+		full_name?:    string
 		homepage_url?: string
+		id?:           string
+		name?:         string
 	}
 }
 github_repository_autolink_reference: {
@@ -283,6 +360,14 @@ github_repository_environment: {
 		environment!: string
 		repository!:  string
 		wait_timer?:  number
+		deployment_branch_policy?: {
+			custom_branch_policies!: bool
+			protected_branches!:     bool
+		}
+		reviewers?: {
+			teams?: [...number]
+			users?: [...number]
+		}
 	}
 }
 github_repository_file: {
@@ -299,6 +384,7 @@ github_repository_file: {
 		file!:       string
 		repository!: string
 		branch?:     string
+		id?:         string
 	}
 }
 github_repository_milestone: {
@@ -314,6 +400,7 @@ github_repository_milestone: {
 		number!:     number
 		owner!:      string
 		repository!: string
+		id?:         string
 	}
 }
 github_repository_project: {
@@ -336,6 +423,7 @@ github_repository_pull_request: {
 	#DataSource: {
 		base_repository!: string
 		number!:          number
+		id?:              string
 		owner?:           string
 	}
 }
@@ -351,6 +439,12 @@ github_repository_webhook: {
 		repository!: string
 		active?:     bool
 		name?:       string
+		configuration?: {
+			content_type?: string
+			insecure_ssl?: bool
+			secret?:       string
+			url!:          string
+		}
 	}
 }
 github_team: {
@@ -364,12 +458,17 @@ github_team: {
 	}
 	#DataSource: {
 		slug!:            string
+		id?:              string
 		membership_type?: string
 	}
 }
 github_team_members: {
 	#Resource: {
 		team_id!: string
+		members?: {
+			role?:     string
+			username!: string
+		}
 	}
 }
 github_team_membership: {
@@ -389,11 +488,21 @@ github_team_repository: {
 github_team_settings: {
 	#Resource: {
 		team_id!: string
+		review_request_delegation?: {
+			algorithm?:    string
+			member_count?: number
+			notify?:       bool
+		}
 	}
 }
 github_team_sync_group_mapping: {
 	#Resource: {
 		team_slug!: string
+		group?: {
+			group_description!: string
+			group_id!:          string
+			group_name!:        string
+		}
 	}
 }
 github_user_gpg_key: {
@@ -413,19 +522,27 @@ github_user_ssh_key: {
 	}
 }
 github_actions_organization_secrets: {
-	#DataSource: {}
+	#DataSource: {
+		id?: string
+	}
 }
 github_actions_public_key: {
 	#DataSource: {
 		repository!: string
+		id?:         string
 	}
 }
 github_actions_secrets: {
-	#DataSource: {}
+	#DataSource: {
+		full_name?: string
+		id?:        string
+		name?:      string
+	}
 }
 github_app: {
 	#DataSource: {
 		slug!: string
+		id?:   string
 	}
 }
 github_collaborators: {
@@ -433,50 +550,71 @@ github_collaborators: {
 		owner!:       string
 		repository!:  string
 		affiliation?: string
+		id?:          string
 	}
 }
 github_dependabot_organization_secrets: {
-	#DataSource: {}
+	#DataSource: {
+		id?: string
+	}
 }
 github_dependabot_public_key: {
 	#DataSource: {
 		repository!: string
+		id?:         string
 	}
 }
 github_dependabot_secrets: {
-	#DataSource: {}
+	#DataSource: {
+		full_name?: string
+		id?:        string
+		name?:      string
+	}
 }
 github_external_groups: {
-	#DataSource: {}
+	#DataSource: {
+		id?: string
+	}
 }
 github_ip_ranges: {
-	#DataSource: {}
+	#DataSource: {
+		id?: string
+	}
 }
 github_organization: {
 	#DataSource: {
 		name!: string
+		id?:   string
 	}
 }
 github_organization_ip_allow_list: {
-	#DataSource: {}
+	#DataSource: {
+		id?: string
+	}
 }
 github_organization_team_sync_groups: {
-	#DataSource: {}
+	#DataSource: {
+		id?: string
+	}
 }
 github_organization_teams: {
 	#DataSource: {
+		id?:               string
 		results_per_page?: number
 		root_teams_only?:  bool
 		summary_only?:     bool
 	}
 }
 github_organization_webhooks: {
-	#DataSource: {}
+	#DataSource: {
+		id?: string
+	}
 }
 github_ref: {
 	#DataSource: {
 		ref!:        string
 		repository!: string
+		id?:         string
 	}
 }
 github_release: {
@@ -484,6 +622,7 @@ github_release: {
 		owner!:       string
 		repository!:  string
 		retrieve_by!: string
+		id?:          string
 		release_id?:  number
 		release_tag?: string
 	}
@@ -491,6 +630,7 @@ github_release: {
 github_repositories: {
 	#DataSource: {
 		query!:            string
+		id?:               string
 		include_repo_id?:  bool
 		results_per_page?: number
 		sort?:             string
@@ -499,6 +639,7 @@ github_repositories: {
 github_repository_branches: {
 	#DataSource: {
 		repository!:                  string
+		id?:                          string
 		only_non_protected_branches?: bool
 		only_protected_branches?:     bool
 	}
@@ -506,6 +647,7 @@ github_repository_branches: {
 github_repository_deploy_keys: {
 	#DataSource: {
 		repository!: string
+		id?:         string
 	}
 }
 github_repository_pull_requests: {
@@ -513,6 +655,7 @@ github_repository_pull_requests: {
 		base_repository!: string
 		base_ref?:        string
 		head_ref?:        string
+		id?:              string
 		owner?:           string
 		sort_by?:         string
 		sort_direction?:  string
@@ -520,27 +663,35 @@ github_repository_pull_requests: {
 	}
 }
 github_repository_teams: {
-	#DataSource: {}
+	#DataSource: {
+		full_name?: string
+		id?:        string
+		name?:      string
+	}
 }
 github_repository_webhooks: {
 	#DataSource: {
 		repository!: string
+		id?:         string
 	}
 }
 github_tree: {
 	#DataSource: {
 		repository!: string
 		tree_sha!:   string
+		id?:         string
 		recursive?:  bool
 	}
 }
 github_user: {
 	#DataSource: {
 		username!: string
+		id?:       string
 	}
 }
 github_users: {
 	#DataSource: {
 		usernames!: [...string]
+		id?: string
 	}
 }
