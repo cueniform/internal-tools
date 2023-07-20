@@ -11,17 +11,73 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+type Ratchet struct {
+	ProviderAddress    string
+	ProviderSchemaData []byte
+}
+
+// New creates a new Ratchet instance with the provided provider schema data and address.
+// It reads the content of the file specified by the 'providerSchemaPath' parameter and
+// initializes a new Ratchet struct with the given 'providerAddress' and data of 'providerSchemaPath'.
+//
+// Parameters:
+//
+//   - providerSchemaPath: string
+//     The path to the file containing the provider schema data.
+//
+//   - providerAddress: string
+//     The address of the provider to emit the entities.
+//
+// Returns:
+//
+//   - *Ratchet: A pointer to the newly created Ratchet instance.
+//
+//   - error: If there is an error reading the provider schema data file or any other
+//     error encountered during the initialization, it will be returned.
+func New(providerSchemaPath, providerAddress string) (*Ratchet, error) {
+	providerSchemaData, err := os.ReadFile(providerSchemaPath)
+	if err != nil {
+		return nil, err
+	}
+	if len(providerSchemaData) > 0 {
+		if providerSchemaData[len(providerSchemaData)-1] == '\n' {
+			providerSchemaData = providerSchemaData[:len(providerSchemaData)-1]
+		}
+	}
+	return &Ratchet{
+		ProviderAddress:    providerAddress,
+		ProviderSchemaData: providerSchemaData,
+	}, nil
+}
+
+// ProviderData returns the data of the provider associated with the Ratchet instance as a slice of bytes.
+// It is the public API to allow users to retrieve the provider data stored in the Ratchet instance.
+// Returns:
+//
+//   - []byte: The provider data as a slice of bytes.
+//
+//   - error: If any error occurs during the retrieval of the provider data, it will be returned as an error.
+func (rt *Ratchet) ProviderData() ([]byte, error) {
+	return []byte(rt.providerData()), nil
+}
+
+// providerData is the internal method that hides the implementation details of how to get the provider data.
+// Currently, it uses the Go module gjson which returns an empty string if the keys do not exist.
+func (rt *Ratchet) providerData() string {
+	return gjson.GetBytes(rt.ProviderSchemaData, "provider_schemas").Get(strings.ReplaceAll(rt.ProviderAddress, ".", "\\.")).String()
+}
+
 func Main() int {
 	if len(os.Args) < 3 {
 		fmt.Fprintf(os.Stderr, "Usage: %s [terraform-provider-schema.json] [provider_address]\n", os.Args[0])
 		return 1
 	}
-	JSONData, err := os.ReadFile(os.Args[1])
+	rt, err := New(os.Args[1], os.Args[2])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	CUESchema := EmitEntities(os.Args[2], JSONData)
+	CUESchema := EmitEntities(rt.ProviderAddress, rt.ProviderSchemaData)
 	ctx := cuecontext.New()
 	fmt.Printf("%#v\n", ctx.CompileString(CUESchema))
 	return 0
