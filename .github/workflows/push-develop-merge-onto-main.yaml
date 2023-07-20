@@ -1,0 +1,39 @@
+name: push/develop/ff-merge-onto-main
+
+"on":
+  push:
+    branches: ["develop"]
+
+concurrency: "main"
+
+jobs:
+  test_and_merge:
+    name: "Merge 'develop' onto 'main'"
+    runs-on: "ubuntu-latest"
+    permissions:
+      contents: "write"
+    steps:
+      - name: "Check out code"
+        uses: "actions/checkout@v3"
+
+      - name: "Setup Go"
+        uses: "actions/setup-go@v4"
+        with:
+          go-version-file: "go.mod"
+
+      - name: "Run tests"
+        run: "make test"
+
+      - name: "Check out code"
+        uses: "actions/checkout@v3"
+        with:
+          ref: "main"
+          fetch-depth: 0
+
+      - name: "Check if 'develop' can be merged onto 'main' via fast-forward"
+        run: "git merge-base --is-ancestor main origin/develop"
+
+      - name: "Fast-forward merge 'develop' onto 'main'"
+        run: |
+          git merge origin/develop --ff-only
+          git push

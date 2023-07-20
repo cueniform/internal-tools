@@ -8,6 +8,11 @@ schemata/%.json.zst:
 build/%.json: schemata/%.json.zst
 	zstdcat "$^" >"$@"
 
+.PHONY: ci
+ci:
+	act --rm -C ../
+
 .PHONY: test
 test:
-	act --rm -C ../
+	go test ./... --tags=fixtures
+	go test -race ./...
