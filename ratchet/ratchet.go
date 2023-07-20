@@ -67,6 +67,31 @@ func (rt *Ratchet) providerData() string {
 	return gjson.GetBytes(rt.ProviderSchemaData, "provider_schemas").Get(strings.ReplaceAll(rt.ProviderAddress, ".", "\\.")).String()
 }
 
+func (rt *Ratchet) EmitEntities() (string, error) {
+	providerData, err := rt.ProviderData()
+	if err != nil {
+		return "", err
+	}
+	output := []string{}
+	gjson.GetBytes(providerData, "data_source_schemas").ForEach(func(dataSourceID, dataSourceValue gjson.Result) bool {
+		output = append(output, fmt.Sprintf("%s: %s: {", dataSourceID.String(), "#DataSource"))
+		if dataSourceValue.Get("block").Get("attributes").Exists() {
+			output = append(output, EmitDatasources(dataSourceID.String(), dataSourceValue.Get("block").Get("attributes")))
+		}
+		output = append(output, "}")
+		return true
+	})
+	gjson.GetBytes(providerData, "resource_schemas").ForEach(func(resourceID, resourceValue gjson.Result) bool {
+		output = append(output, fmt.Sprintf("%s: %s: {", resourceID.String(), "#Resource"))
+		if resourceValue.Get("block").Exists() {
+			output = append(output, EmitResources(resourceID.String(), resourceValue.Get("block")))
+		}
+		output = append(output, "}")
+		return true
+	})
+	return strings.Join(output, "\n"), nil
+}
+
 func Main() int {
 	if len(os.Args) < 3 {
 		fmt.Fprintf(os.Stderr, "Usage: %s [terraform-provider-schema.json] [provider_address]\n", os.Args[0])
@@ -77,7 +102,11 @@ func Main() int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	CUESchema := EmitEntities(rt.ProviderAddress, rt.ProviderSchemaData)
+	CUESchema, err := rt.EmitEntities()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
 	ctx := cuecontext.New()
 	fmt.Printf("%#v\n", ctx.CompileString(CUESchema))
 	return 0
@@ -269,39 +298,6 @@ func EmitBlocks(entityID string, blocks gjson.Result) string {
 			output = append(output, EmitBlocks(entityID, value.Get("block").Get("block_types")))
 		}
 		output = append(output, "}")
-		return true
-	})
-	return strings.Join(output, "\n")
-}
-
-func EmitEntities(providerID string, JSONData []byte) string {
-	output := []string{}
-	gjson.GetBytes(JSONData, "provider_schemas").ForEach(func(providerAddress, providerValue gjson.Result) bool {
-		if providerAddress.String() == providerID {
-			providerValue.ForEach(func(key, value gjson.Result) bool {
-				if key.String() == "data_source_schemas" {
-					value.ForEach(func(datasourceID, datasourceValue gjson.Result) bool {
-						output = append(output, fmt.Sprintf("%s: %s: {", datasourceID.String(), "#DataSource"))
-						if datasourceValue.Get("block").Get("attributes").Exists() {
-							output = append(output, EmitDatasources(datasourceID.String(), datasourceValue.Get("block").Get("attributes")))
-						}
-						output = append(output, "}")
-						return true
-					})
-				}
-				if key.String() == "resource_schemas" {
-					value.ForEach(func(resourceID, value gjson.Result) bool {
-						output = append(output, fmt.Sprintf("%s: %s: {", resourceID.String(), "#Resource"))
-						if value.Get("block").Exists() {
-							output = append(output, EmitResources(resourceID.String(), value.Get("block")))
-						}
-						output = append(output, "}")
-						return true
-					})
-				}
-				return true
-			})
-		}
 		return true
 	})
 	return strings.Join(output, "\n")
