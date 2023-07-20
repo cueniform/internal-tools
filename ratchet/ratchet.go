@@ -11,6 +11,22 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+func Main() int {
+	if len(os.Args) < 3 {
+		fmt.Fprintf(os.Stderr, "Usage: %s [terraform-provider-schema.json] [provider_address]\n", os.Args[0])
+		return 1
+	}
+	JSONData, err := os.ReadFile(os.Args[1])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	CUESchema := EmitEntities(os.Args[2], JSONData)
+	ctx := cuecontext.New()
+	fmt.Printf("%#v\n", ctx.CompileString(CUESchema))
+	return 0
+}
+
 func formatPrimitiveTypes(key, value string, typeAttributes gjson.Result) string {
 	var output string
 	switch {
@@ -233,20 +249,4 @@ func EmitEntities(providerID string, JSONData []byte) string {
 		return true
 	})
 	return strings.Join(output, "\n")
-}
-
-func Main() int {
-	if len(os.Args) < 3 {
-		fmt.Fprintf(os.Stderr, "Usage: %s [terraform-provider-schema.json] [provider_address]\n", os.Args[0])
-		return 1
-	}
-	JSONData, err := os.ReadFile(os.Args[1])
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
-	}
-	CUESchema := EmitEntities(os.Args[2], JSONData)
-	ctx := cuecontext.New()
-	fmt.Printf("%#v\n", ctx.CompileString(CUESchema))
-	return 0
 }

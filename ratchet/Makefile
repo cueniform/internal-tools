@@ -7,3 +7,7 @@ schemata/%.json.zst:
 
 build/%.json: schemata/%.json.zst
 	zstdcat "$^" >"$@"
+
+.PHONY: test
+test:
+	act --rm -C ../
