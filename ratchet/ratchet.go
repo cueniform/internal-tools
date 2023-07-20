@@ -58,8 +58,8 @@ func New(providerSchemaPath, providerAddress string) (*Ratchet, error) {
 //   - []byte: The provider data as a slice of bytes.
 //
 //   - error: If any error occurs during the retrieval of the provider data, it will be returned as an error.
-func (rt *Ratchet) ProviderData() ([]byte, error) {
-	return []byte(rt.providerData()), nil
+func (rt *Ratchet) ProviderData() []byte {
+	return []byte(rt.providerData())
 }
 
 // providerData is the internal method that hides the implementation details of how to get the provider data.
@@ -173,11 +173,8 @@ func (rt *Ratchet) EmitBlocks(resourceID string, blocks gjson.Result) {
 	})
 }
 
-func (rt *Ratchet) EmitEntities() (string, error) {
-	providerData, err := rt.ProviderData()
-	if err != nil {
-		return "", err
-	}
+func (rt *Ratchet) EmitEntities() string {
+	providerData := rt.ProviderData()
 	gjson.GetBytes(providerData, "data_source_schemas").ForEach(func(dataSourceID, dataSourceValue gjson.Result) bool {
 		rt.OutputLines = append(rt.OutputLines, fmt.Sprintf("%s: %s: {", dataSourceID.String(), "#DataSource"))
 		if dataSourceValue.Get("block").Get("attributes").Exists() {
@@ -194,7 +191,7 @@ func (rt *Ratchet) EmitEntities() (string, error) {
 		rt.OutputLines = append(rt.OutputLines, "}")
 		return true
 	})
-	return strings.Join(rt.OutputLines, "\n"), nil
+	return strings.Join(rt.OutputLines, "\n")
 }
 
 func Main() int {
@@ -207,13 +204,8 @@ func Main() int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	CUESchema, err := rt.EmitEntities()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
-	}
 	ctx := cuecontext.New()
-	fmt.Printf("%#v\n", ctx.CompileString(CUESchema))
+	fmt.Printf("%#v\n", ctx.CompileString(rt.EmitEntities()))
 	return 0
 }
 

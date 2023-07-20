@@ -88,10 +88,7 @@ func TestProviderData_ReturnsExpectedDataGivenProviderSchemaPathAndMatchingProvi
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := ratchet.ProviderData()
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := ratchet.ProviderData()
 	got := bytes.ReplaceAll(data, []byte(" "), []byte(""))
 	if !cmp.Equal(want, got) {
 		t.Fatal(cmp.Diff(want, got))
