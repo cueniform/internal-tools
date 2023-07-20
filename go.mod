@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	cuelang.org/go v0.6.0-alpha.1
+	github.com/google/go-cmp v0.5.8
 	github.com/rogpeppe/go-internal v1.11.0
 	github.com/tidwall/gjson v1.14.4
 )
