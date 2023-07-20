@@ -12,6 +12,7 @@ import (
 )
 
 type Ratchet struct {
+	OutputLines        []string
 	ProviderAddress    string
 	ProviderSchemaData []byte
 }
@@ -67,29 +68,133 @@ func (rt *Ratchet) providerData() string {
 	return gjson.GetBytes(rt.ProviderSchemaData, "provider_schemas").Get(strings.ReplaceAll(rt.ProviderAddress, ".", "\\.")).String()
 }
 
+func (rt *Ratchet) EmitDatasources(dataSourceID string, terraformAttributes gjson.Result) {
+	required := map[string]gjson.Result{}
+	optional := map[string]gjson.Result{}
+	terraformAttributes.ForEach(func(attrID, terraformAttribute gjson.Result) bool {
+		if terraformAttribute.Get("required").Bool() {
+			required[attrID.String()] = terraformAttribute
+			return true
+		}
+		if terraformAttribute.Get("optional").Bool() {
+			optional[attrID.String()] = terraformAttribute
+			return true
+		}
+		if terraformAttribute.Get("computed").Bool() {
+			return true
+		}
+		log.Fatalf("(datasource) %s: Attribute %q is neither required nor optional: %v", dataSourceID, attrID, terraformAttribute)
+		return false
+	})
+	keys := make([]string, 0, len(required))
+	for k := range required {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	for _, key := range keys {
+		rt.OutputLines = append(rt.OutputLines, EmitAttribute(key, dataSourceID, "#DataSource", required[key]))
+	}
+	keys = make([]string, 0, len(optional))
+	for k := range optional {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	for _, key := range keys {
+		rt.OutputLines = append(rt.OutputLines, EmitAttribute(key, dataSourceID, "#DataSource", optional[key]))
+	}
+}
+
+func (rt *Ratchet) EmitResources(resourceID string, terraformBlock gjson.Result) {
+	required := map[string]gjson.Result{}
+	optional := map[string]gjson.Result{}
+	if terraformBlock.Get("attributes").Exists() {
+		terraformBlock.Get("attributes").ForEach(func(attrID, terraformAttribute gjson.Result) bool {
+			if terraformAttribute.Get("computed").Bool() {
+				return true
+			}
+			if terraformAttribute.Get("required").Bool() {
+				required[attrID.String()] = terraformAttribute
+				return true
+			}
+			if terraformAttribute.Get("optional").Bool() {
+				optional[attrID.String()] = terraformAttribute
+				return true
+			}
+			log.Fatalf("(resource) %s: Attribute %q is neither required nor optional: %v", resourceID, attrID, terraformAttribute)
+			return false
+		})
+	}
+	keys := make([]string, 0, len(required))
+	for k := range required {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	for _, key := range keys {
+		rt.OutputLines = append(rt.OutputLines, EmitAttribute(key, resourceID, "#Resource", required[key]))
+	}
+	keys = make([]string, 0, len(optional))
+	for k := range optional {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	for _, key := range keys {
+		rt.OutputLines = append(rt.OutputLines, EmitAttribute(key, resourceID, "#Resource", optional[key]))
+	}
+	if terraformBlock.Get("block_types").Exists() {
+		rt.EmitBlocks(resourceID, terraformBlock.Get("block_types"))
+	}
+}
+
+func (rt *Ratchet) EmitBlocks(resourceID string, blocks gjson.Result) {
+	blocks.ForEach(func(blockID, value gjson.Result) bool {
+		rt.OutputLines = append(rt.OutputLines, fmt.Sprintf("%s?: {", blockID.String()))
+		if value.Get("block").Get("attributes").Exists() {
+			value.Get("block").Get("attributes").ForEach(func(attrID, terraformAttribute gjson.Result) bool {
+				if terraformAttribute.Get("required").Bool() {
+					rt.OutputLines = append(rt.OutputLines, EmitAttribute(attrID.String(), resourceID, "#Resource", terraformAttribute))
+					return true
+				}
+				if terraformAttribute.Get("optional").Bool() {
+					rt.OutputLines = append(rt.OutputLines, EmitAttribute(attrID.String(), resourceID, "#Resource", terraformAttribute))
+					return true
+				}
+				if terraformAttribute.Get("computed").Bool() {
+					return true
+				}
+				log.Fatalf("(block) %s: Attribute %q is neither required nor optional: %v", resourceID, attrID, terraformAttribute)
+				return false
+			})
+		}
+		if value.Get("block").Get("block_types").Exists() {
+			rt.EmitBlocks(resourceID, value.Get("block").Get("block_types"))
+		}
+		rt.OutputLines = append(rt.OutputLines, "}")
+		return true
+	})
+}
+
 func (rt *Ratchet) EmitEntities() (string, error) {
 	providerData, err := rt.ProviderData()
 	if err != nil {
 		return "", err
 	}
-	output := []string{}
 	gjson.GetBytes(providerData, "data_source_schemas").ForEach(func(dataSourceID, dataSourceValue gjson.Result) bool {
-		output = append(output, fmt.Sprintf("%s: %s: {", dataSourceID.String(), "#DataSource"))
+		rt.OutputLines = append(rt.OutputLines, fmt.Sprintf("%s: %s: {", dataSourceID.String(), "#DataSource"))
 		if dataSourceValue.Get("block").Get("attributes").Exists() {
-			output = append(output, EmitDatasources(dataSourceID.String(), dataSourceValue.Get("block").Get("attributes")))
+			rt.EmitDatasources(dataSourceID.String(), dataSourceValue.Get("block").Get("attributes"))
 		}
-		output = append(output, "}")
+		rt.OutputLines = append(rt.OutputLines, "}")
 		return true
 	})
 	gjson.GetBytes(providerData, "resource_schemas").ForEach(func(resourceID, resourceValue gjson.Result) bool {
-		output = append(output, fmt.Sprintf("%s: %s: {", resourceID.String(), "#Resource"))
+		rt.OutputLines = append(rt.OutputLines, fmt.Sprintf("%s: %s: {", resourceID.String(), "#Resource"))
 		if resourceValue.Get("block").Exists() {
-			output = append(output, EmitResources(resourceID.String(), resourceValue.Get("block")))
+			rt.EmitResources(resourceID.String(), resourceValue.Get("block"))
 		}
-		output = append(output, "}")
+		rt.OutputLines = append(rt.OutputLines, "}")
 		return true
 	})
-	return strings.Join(output, "\n"), nil
+	return strings.Join(rt.OutputLines, "\n"), nil
 }
 
 func Main() int {
@@ -190,115 +295,4 @@ func EmitAttribute(attrID string, entityID string, entityType string, terraformA
 		log.Fatalf("Unkown type %q\n", attrType.Type)
 	}
 	return ""
-}
-
-func EmitDatasources(entityID string, terraformAttributes gjson.Result) string {
-	output := []string{}
-	required := map[string]gjson.Result{}
-	optional := map[string]gjson.Result{}
-	terraformAttributes.ForEach(func(attrID, terraformAttribute gjson.Result) bool {
-		if terraformAttribute.Get("required").Bool() {
-			required[attrID.String()] = terraformAttribute
-			return true
-		}
-		if terraformAttribute.Get("optional").Bool() {
-			optional[attrID.String()] = terraformAttribute
-			return true
-		}
-		if terraformAttribute.Get("computed").Bool() {
-			return true
-		}
-		log.Fatalf("(datasource) %s: Attribute %q is neither required nor optional: %v", entityID, attrID, terraformAttribute)
-		return true
-	})
-	keys := make([]string, 0, len(required))
-	for k := range required {
-		keys = append(keys, k)
-	}
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
-	for _, key := range keys {
-		output = append(output, EmitAttribute(key, entityID, "#DataSource", required[key]))
-	}
-	keys = make([]string, 0, len(optional))
-	for k := range optional {
-		keys = append(keys, k)
-	}
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
-	for _, key := range keys {
-		output = append(output, EmitAttribute(key, entityID, "#DataSource", optional[key]))
-	}
-	return strings.Join(output, "\n")
-}
-
-func EmitResources(resourceID string, terraformBlock gjson.Result) string {
-	output := []string{}
-	required := map[string]gjson.Result{}
-	optional := map[string]gjson.Result{}
-	if terraformBlock.Get("attributes").Exists() {
-		terraformBlock.Get("attributes").ForEach(func(attrID, terraformAttribute gjson.Result) bool {
-			if terraformAttribute.Get("computed").Bool() {
-				return true
-			}
-			if terraformAttribute.Get("required").Bool() {
-				required[attrID.String()] = terraformAttribute
-				return true
-			}
-			if terraformAttribute.Get("optional").Bool() {
-				optional[attrID.String()] = terraformAttribute
-				return true
-			}
-			log.Fatalf("(resource) %s: Attribute %q is neither required nor optional: %v", resourceID, attrID, terraformAttribute)
-			return false
-		})
-	}
-	keys := make([]string, 0, len(required))
-	for k := range required {
-		keys = append(keys, k)
-	}
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
-	for _, key := range keys {
-		output = append(output, EmitAttribute(key, resourceID, "#Resource", required[key]))
-	}
-	keys = make([]string, 0, len(optional))
-	for k := range optional {
-		keys = append(keys, k)
-	}
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
-	for _, key := range keys {
-		output = append(output, EmitAttribute(key, resourceID, "#Resource", optional[key]))
-	}
-	if terraformBlock.Get("block_types").Exists() {
-		output = append(output, EmitBlocks(resourceID, terraformBlock.Get("block_types")))
-	}
-	return strings.Join(output, "\n")
-}
-
-func EmitBlocks(entityID string, blocks gjson.Result) string {
-	output := []string{}
-	blocks.ForEach(func(blockID, value gjson.Result) bool {
-		output = append(output, fmt.Sprintf("%s?: {", blockID.String()))
-		if value.Get("block").Get("attributes").Exists() {
-			value.Get("block").Get("attributes").ForEach(func(attrID, terraformAttribute gjson.Result) bool {
-				if terraformAttribute.Get("required").Bool() {
-					output = append(output, EmitAttribute(attrID.String(), entityID, "#Resource", terraformAttribute))
-					return true
-				}
-				if terraformAttribute.Get("optional").Bool() {
-					output = append(output, EmitAttribute(attrID.String(), entityID, "#Resource", terraformAttribute))
-					return true
-				}
-				if terraformAttribute.Get("computed").Bool() {
-					return true
-				}
-				log.Fatalf("(block) %s: Attribute %q is neither required nor optional: %v", entityID, attrID, terraformAttribute)
-				return false
-			})
-		}
-		if value.Get("block").Get("block_types").Exists() {
-			output = append(output, EmitBlocks(entityID, value.Get("block").Get("block_types")))
-		}
-		output = append(output, "}")
-		return true
-	})
-	return strings.Join(output, "\n")
 }
