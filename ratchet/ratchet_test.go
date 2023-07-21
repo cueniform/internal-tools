@@ -16,47 +16,6 @@ func TestNewErrorsGivenNonExistentFileAsInput(t *testing.T) {
 	}
 }
 
-func TestNewSetExpectedDataGivenExistentAndValidFileAsInput(t *testing.T) {
-	t.Parallel()
-	want := []byte(`{
-  "provider_schemas": {
-    "provider.registry/provider_name": {
-      "resource_schemas": {
-        "resource_id": {
-          "attributes": {
-            "attribute_id": {
-              "type": ["list", "string"],
-              "required": true
-            }
-          }
-        }
-      }
-    }
-  }
-}`)
-	ratchet, err := ratchet.New("testdata/input.json", "bogus")
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := ratchet.ProviderSchemaData
-	if !cmp.Equal(want, got) {
-		t.Fatal(cmp.Diff(want, got))
-	}
-}
-
-func TestNewRemovesLastNewLineFromInputFile(t *testing.T) {
-	t.Parallel()
-	want := []byte("{}")
-	ratchet, err := ratchet.New("testdata/newline.json", "bogus")
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := ratchet.ProviderSchemaData
-	if !cmp.Equal(want, got) {
-		t.Fatal(cmp.Diff(want, got))
-	}
-}
-
 func TestNewSetExpectedProviderAddressGivenStringContainingDot(t *testing.T) {
 	t.Parallel()
 	want := "provider.registry/provider_name"
@@ -84,12 +43,11 @@ func TestProviderData_ReturnsExpectedDataGivenProviderSchemaPathAndMatchingProvi
 }
 }
 }`)
-	ratchet, err := ratchet.New("testdata/input.json", "provider.registry/provider_name")
+	rt, err := ratchet.New("testdata/input.json", "provider.registry/provider_name")
 	if err != nil {
 		t.Fatal(err)
 	}
-	data := ratchet.ProviderData()
-	got := bytes.ReplaceAll(data, []byte(" "), []byte(""))
+	got := bytes.ReplaceAll(rt.ProviderSchemaData, []byte(" "), []byte(""))
 	if !cmp.Equal(want, got) {
 		t.Fatal(cmp.Diff(want, got))
 	}

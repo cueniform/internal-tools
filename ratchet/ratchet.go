@@ -36,19 +36,14 @@ type Ratchet struct {
 //   - error: If there is an error reading the provider schema data file or any other
 //     error encountered during the initialization, it will be returned.
 func New(providerSchemaPath, providerAddress string) (*Ratchet, error) {
-	providerSchemaData, err := os.ReadFile(providerSchemaPath)
+	rt := &Ratchet{
+		ProviderAddress: providerAddress,
+	}
+	err := rt.ProviderData(providerSchemaPath)
 	if err != nil {
 		return nil, err
 	}
-	if len(providerSchemaData) > 0 {
-		if providerSchemaData[len(providerSchemaData)-1] == '\n' {
-			providerSchemaData = providerSchemaData[:len(providerSchemaData)-1]
-		}
-	}
-	return &Ratchet{
-		ProviderAddress:    providerAddress,
-		ProviderSchemaData: providerSchemaData,
-	}, nil
+	return rt, nil
 }
 
 // ProviderData returns the data of the provider associated with the Ratchet instance as a slice of bytes.
@@ -58,14 +53,24 @@ func New(providerSchemaPath, providerAddress string) (*Ratchet, error) {
 //   - []byte: The provider data as a slice of bytes.
 //
 //   - error: If any error occurs during the retrieval of the provider data, it will be returned as an error.
-func (rt *Ratchet) ProviderData() []byte {
-	return []byte(rt.providerData())
+func (rt *Ratchet) ProviderData(providerSchemaPath string) error {
+	providerSchemaData, err := os.ReadFile(providerSchemaPath)
+	if err != nil {
+		return err
+	}
+	if len(providerSchemaData) > 0 {
+		if providerSchemaData[len(providerSchemaData)-1] == '\n' {
+			providerSchemaData = providerSchemaData[:len(providerSchemaData)-1]
+		}
+	}
+	rt.providerData(providerSchemaData)
+	return nil
 }
 
 // providerData is the internal method that hides the implementation details of how to get the provider data.
 // Currently, it uses the Go module gjson which returns an empty string if the keys do not exist.
-func (rt *Ratchet) providerData() string {
-	return gjson.GetBytes(rt.ProviderSchemaData, "provider_schemas").Get(strings.ReplaceAll(rt.ProviderAddress, ".", "\\.")).String()
+func (rt *Ratchet) providerData(providerSchemaData []byte) {
+	rt.ProviderSchemaData = []byte(gjson.GetBytes(providerSchemaData, "provider_schemas").Get(strings.ReplaceAll(rt.ProviderAddress, ".", "\\.")).String())
 }
 
 func (rt *Ratchet) EmitDatasources(dataSourceID string, terraformAttributes gjson.Result) {
@@ -174,8 +179,7 @@ func (rt *Ratchet) EmitBlocks(resourceID string, blocks gjson.Result) {
 }
 
 func (rt *Ratchet) EmitEntities() string {
-	providerData := rt.ProviderData()
-	gjson.GetBytes(providerData, "data_source_schemas").ForEach(func(dataSourceID, dataSourceValue gjson.Result) bool {
+	gjson.GetBytes(rt.ProviderSchemaData, "data_source_schemas").ForEach(func(dataSourceID, dataSourceValue gjson.Result) bool {
 		rt.OutputLines = append(rt.OutputLines, fmt.Sprintf("%s: %s: {", dataSourceID.String(), "#DataSource"))
 		if dataSourceValue.Get("block").Get("attributes").Exists() {
 			rt.EmitDatasources(dataSourceID.String(), dataSourceValue.Get("block").Get("attributes"))
@@ -183,7 +187,7 @@ func (rt *Ratchet) EmitEntities() string {
 		rt.OutputLines = append(rt.OutputLines, "}")
 		return true
 	})
-	gjson.GetBytes(providerData, "resource_schemas").ForEach(func(resourceID, resourceValue gjson.Result) bool {
+	gjson.GetBytes(rt.ProviderSchemaData, "resource_schemas").ForEach(func(resourceID, resourceValue gjson.Result) bool {
 		rt.OutputLines = append(rt.OutputLines, fmt.Sprintf("%s: %s: {", resourceID.String(), "#Resource"))
 		if resourceValue.Get("block").Exists() {
 			rt.EmitResources(resourceID.String(), resourceValue.Get("block"))
