@@ -18,23 +18,6 @@ type Ratchet struct {
 }
 
 // New creates a new Ratchet instance with the provided provider schema data and address.
-// It reads the content of the file specified by the 'providerSchemaPath' parameter and
-// initializes a new Ratchet struct with the given 'providerAddress' and data of 'providerSchemaPath'.
-//
-// Parameters:
-//
-//   - providerSchemaPath: string
-//     The path to the file containing the provider schema data.
-//
-//   - providerAddress: string
-//     The address of the provider to emit the entities.
-//
-// Returns:
-//
-//   - *Ratchet: A pointer to the newly created Ratchet instance.
-//
-//   - error: If there is an error reading the provider schema data file or any other
-//     error encountered during the initialization, it will be returned.
 func New(providerSchemaPath, providerAddress string) (*Ratchet, error) {
 	rt := &Ratchet{
 		ProviderAddress: providerAddress,
@@ -48,11 +31,6 @@ func New(providerSchemaPath, providerAddress string) (*Ratchet, error) {
 
 // ProviderData returns the data of the provider associated with the Ratchet instance as a slice of bytes.
 // It is the public API to allow users to retrieve the provider data stored in the Ratchet instance.
-// Returns:
-//
-//   - []byte: The provider data as a slice of bytes.
-//
-//   - error: If any error occurs during the retrieval of the provider data, it will be returned as an error.
 func (rt *Ratchet) ProviderData(providerSchemaPath string) error {
 	providerSchemaData, err := os.ReadFile(providerSchemaPath)
 	if err != nil {
