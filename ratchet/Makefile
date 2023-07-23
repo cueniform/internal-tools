@@ -8,11 +8,21 @@ schemata/%.json.zst:
 build/%.json: schemata/%.json.zst
 	zstdcat "$^" >"$@"
 
+.PHONY: test
+test: unitest integration
+
 .PHONY: ci
 ci:
 	act --rm -C ../
 
-.PHONY: test
-test:
+.PHONY: unitest
+unitest:
 	go test ./... --tags=fixtures
 	go test -race ./...
+
+.PHONY: integration
+integration:
+	rm -f cmd/ratchet/ratchet
+	go build -o cmd/ratchet/ratchet cmd/ratchet/main.go
+	PATH="$(PATH):$(PWD)/cmd/ratchet" testscript testdata/script/integration/*
+	rm cmd/ratchet/ratchet

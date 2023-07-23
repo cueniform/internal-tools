@@ -7,8 +7,3 @@ schemata/%.json.zst:
 
 build/%.json: schemata/%.json.zst
 	zstdcat "$^" >"$@"
-
-.PHONY: test
-test:
-	go test ./... --tags=fixtures
-	go test -race ./...

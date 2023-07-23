@@ -23,6 +23,7 @@ jobs:
 
       - name: "Run tests"
         run: "make test"
+        working-directory: "ratchet"
 
       - name: "Check out code"
         uses: "actions/checkout@v3"
