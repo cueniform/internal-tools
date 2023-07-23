@@ -1,7 +1,7 @@
 package ratchet_test
 
 import (
-	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/cueniform/internal-tools/ratchet"
@@ -29,9 +29,9 @@ func TestNewSetExpectedProviderAddressGivenStringContainingDot(t *testing.T) {
 	}
 }
 
-func TestProviderData_ReturnsExpectedDataGivenProviderSchemaPathAndMatchingProviderAddress(t *testing.T) {
+func TestProviderData_ReturnsExpectedStringGivenProviderSchemaPathAndMatchingProviderAddress(t *testing.T) {
 	t.Parallel()
-	want := []byte(`{
+	want := `{
 "resource_schemas":{
 "resource_id":{
 "attributes":{
@@ -42,12 +42,12 @@ func TestProviderData_ReturnsExpectedDataGivenProviderSchemaPathAndMatchingProvi
 }
 }
 }
-}`)
+}`
 	rt, err := ratchet.New("testdata/input.json", "provider.registry/provider_name")
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := bytes.ReplaceAll(rt.ProviderSchemaData, []byte(" "), []byte(""))
+	got := strings.ReplaceAll(rt.ProviderSchema, " ", "")
 	if !cmp.Equal(want, got) {
 		t.Fatal(cmp.Diff(want, got))
 	}

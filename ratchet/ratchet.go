@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"sort"
 	"strings"
 
 	"cuelang.org/go/cue/cuecontext"
@@ -12,9 +11,9 @@ import (
 )
 
 type Ratchet struct {
-	OutputLines        []string
-	ProviderAddress    string
-	ProviderSchemaData []byte
+	OutputLines     []string
+	ProviderAddress string
+	ProviderSchema  string
 }
 
 // New creates a new Ratchet instance with the provided provider schema data and address.
@@ -46,21 +45,46 @@ func (rt *Ratchet) ProviderData(providerSchemaPath string) error {
 }
 
 // providerData is the internal method that hides the implementation details of how to get the provider data.
-// Currently, it uses the Go module gjson which returns an empty string if the keys do not exist.
+// Currently, it uses the Go module gjson which returns an empty string if the key does not exist.
 func (rt *Ratchet) providerData(providerSchemaData []byte) {
-	rt.ProviderSchemaData = []byte(gjson.GetBytes(providerSchemaData, "provider_schemas").Get(strings.ReplaceAll(rt.ProviderAddress, ".", "\\.")).String())
+	pathEscaped := strings.ReplaceAll(rt.ProviderAddress, ".", "\\.")
+	rt.ProviderSchema = gjson.GetBytes(providerSchemaData, "provider_schemas").Get(pathEscaped).String()
 }
 
+// EmitEntities generates and emits entities for data sources and resources based on the Ratchet's provider schema.
+// It processes the JSON data and invokes 'EmitDatasources' and 'EmitResources' methods to handle data sources and
+// resources respectively.
+func (rt *Ratchet) EmitEntities() {
+	gjson.Get(rt.ProviderSchema, "data_source_schemas").ForEach(func(dataSourceID, dataSourceValue gjson.Result) bool {
+		if dataSourceValue.Get("block").Get("attributes").Exists() {
+			rt.EmitDatasources(dataSourceID.String(), dataSourceValue.Get("block").Get("attributes"))
+		}
+		return true
+	})
+	gjson.Get(rt.ProviderSchema, "resource_schemas").ForEach(func(resourceID, resourceValue gjson.Result) bool {
+		if resourceValue.Get("block").Exists() {
+			rt.EmitResources(resourceID.String(), resourceValue.Get("block"))
+		}
+		return true
+	})
+}
+
+// EmitDatasources generates and emits attributes for a specific data source based on the Terraform provider schema.
+// It processes the provided 'terraformAttributes' and separates them into required and optional attributes.
 func (rt *Ratchet) EmitDatasources(dataSourceID string, terraformAttributes gjson.Result) {
-	required := map[string]gjson.Result{}
-	optional := map[string]gjson.Result{}
+	rt.OutputLines = append(rt.OutputLines, fmt.Sprintf("%s: %s: {", dataSourceID, "#DataSource"))
+	defer func() {
+		rt.OutputLines = append(rt.OutputLines, "}")
+	}()
+	required := []map[string]gjson.Result{}
+	optional := []map[string]gjson.Result{}
 	terraformAttributes.ForEach(func(attrID, terraformAttribute gjson.Result) bool {
 		if terraformAttribute.Get("required").Bool() {
-			required[attrID.String()] = terraformAttribute
+			required = append(required, map[string]gjson.Result{attrID.String(): terraformAttribute})
 			return true
 		}
 		if terraformAttribute.Get("optional").Bool() {
-			optional[attrID.String()] = terraformAttribute
+			optional = append(optional, map[string]gjson.Result{attrID.String(): terraformAttribute})
 			return true
 		}
 		if terraformAttribute.Get("computed").Bool() {
@@ -69,59 +93,53 @@ func (rt *Ratchet) EmitDatasources(dataSourceID string, terraformAttributes gjso
 		log.Fatalf("(datasource) %s: Attribute %q is neither required nor optional: %v", dataSourceID, attrID, terraformAttribute)
 		return false
 	})
-	keys := make([]string, 0, len(required))
-	for k := range required {
-		keys = append(keys, k)
+	for _, r := range required {
+		for k, v := range r {
+			rt.OutputLines = append(rt.OutputLines, EmitAttribute(k, dataSourceID, "#DataSource", v))
+		}
 	}
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
-	for _, key := range keys {
-		rt.OutputLines = append(rt.OutputLines, EmitAttribute(key, dataSourceID, "#DataSource", required[key]))
-	}
-	keys = make([]string, 0, len(optional))
-	for k := range optional {
-		keys = append(keys, k)
-	}
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
-	for _, key := range keys {
-		rt.OutputLines = append(rt.OutputLines, EmitAttribute(key, dataSourceID, "#DataSource", optional[key]))
+	for _, o := range optional {
+		for k, v := range o {
+			rt.OutputLines = append(rt.OutputLines, EmitAttribute(k, dataSourceID, "#DataSource", v))
+		}
 	}
 }
 
+// EmitResources generates and emits attributes for a specific resource based on the Terraform provider schema.
+// It processes the provided 'terraformAttributes' and separates them into required and optional attributes.
 func (rt *Ratchet) EmitResources(resourceID string, terraformBlock gjson.Result) {
-	required := map[string]gjson.Result{}
-	optional := map[string]gjson.Result{}
+	rt.OutputLines = append(rt.OutputLines, fmt.Sprintf("%s: %s: {", resourceID, "#Resource"))
+	defer func() {
+		rt.OutputLines = append(rt.OutputLines, "}")
+	}()
+	required := []map[string]gjson.Result{}
+	optional := []map[string]gjson.Result{}
 	if terraformBlock.Get("attributes").Exists() {
 		terraformBlock.Get("attributes").ForEach(func(attrID, terraformAttribute gjson.Result) bool {
 			if terraformAttribute.Get("computed").Bool() {
 				return true
 			}
 			if terraformAttribute.Get("required").Bool() {
-				required[attrID.String()] = terraformAttribute
+				required = append(required, map[string]gjson.Result{attrID.String(): terraformAttribute})
 				return true
 			}
 			if terraformAttribute.Get("optional").Bool() {
-				optional[attrID.String()] = terraformAttribute
+				optional = append(optional, map[string]gjson.Result{attrID.String(): terraformAttribute})
 				return true
 			}
 			log.Fatalf("(resource) %s: Attribute %q is neither required nor optional: %v", resourceID, attrID, terraformAttribute)
 			return false
 		})
 	}
-	keys := make([]string, 0, len(required))
-	for k := range required {
-		keys = append(keys, k)
+	for _, r := range required {
+		for k, v := range r {
+			rt.OutputLines = append(rt.OutputLines, EmitAttribute(k, resourceID, "#Resource", v))
+		}
 	}
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
-	for _, key := range keys {
-		rt.OutputLines = append(rt.OutputLines, EmitAttribute(key, resourceID, "#Resource", required[key]))
-	}
-	keys = make([]string, 0, len(optional))
-	for k := range optional {
-		keys = append(keys, k)
-	}
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
-	for _, key := range keys {
-		rt.OutputLines = append(rt.OutputLines, EmitAttribute(key, resourceID, "#Resource", optional[key]))
+	for _, o := range optional {
+		for k, v := range o {
+			rt.OutputLines = append(rt.OutputLines, EmitAttribute(k, resourceID, "#Resource", v))
+		}
 	}
 	if terraformBlock.Get("block_types").Exists() {
 		rt.EmitBlocks(resourceID, terraformBlock.Get("block_types"))
@@ -131,6 +149,9 @@ func (rt *Ratchet) EmitResources(resourceID string, terraformBlock gjson.Result)
 func (rt *Ratchet) EmitBlocks(resourceID string, blocks gjson.Result) {
 	blocks.ForEach(func(blockID, value gjson.Result) bool {
 		rt.OutputLines = append(rt.OutputLines, fmt.Sprintf("%s?: {", blockID.String()))
+		defer func() {
+			rt.OutputLines = append(rt.OutputLines, "}")
+		}()
 		if value.Get("block").Get("attributes").Exists() {
 			value.Get("block").Get("attributes").ForEach(func(attrID, terraformAttribute gjson.Result) bool {
 				if terraformAttribute.Get("required").Bool() {
@@ -151,28 +172,11 @@ func (rt *Ratchet) EmitBlocks(resourceID string, blocks gjson.Result) {
 		if value.Get("block").Get("block_types").Exists() {
 			rt.EmitBlocks(resourceID, value.Get("block").Get("block_types"))
 		}
-		rt.OutputLines = append(rt.OutputLines, "}")
 		return true
 	})
 }
 
-func (rt *Ratchet) EmitEntities() string {
-	gjson.GetBytes(rt.ProviderSchemaData, "data_source_schemas").ForEach(func(dataSourceID, dataSourceValue gjson.Result) bool {
-		rt.OutputLines = append(rt.OutputLines, fmt.Sprintf("%s: %s: {", dataSourceID.String(), "#DataSource"))
-		if dataSourceValue.Get("block").Get("attributes").Exists() {
-			rt.EmitDatasources(dataSourceID.String(), dataSourceValue.Get("block").Get("attributes"))
-		}
-		rt.OutputLines = append(rt.OutputLines, "}")
-		return true
-	})
-	gjson.GetBytes(rt.ProviderSchemaData, "resource_schemas").ForEach(func(resourceID, resourceValue gjson.Result) bool {
-		rt.OutputLines = append(rt.OutputLines, fmt.Sprintf("%s: %s: {", resourceID.String(), "#Resource"))
-		if resourceValue.Get("block").Exists() {
-			rt.EmitResources(resourceID.String(), resourceValue.Get("block"))
-		}
-		rt.OutputLines = append(rt.OutputLines, "}")
-		return true
-	})
+func (rt *Ratchet) String() string {
 	return strings.Join(rt.OutputLines, "\n")
 }
 
@@ -186,8 +190,9 @@ func Main() int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
+	rt.EmitEntities()
 	ctx := cuecontext.New()
-	fmt.Printf("%#v\n", ctx.CompileString(rt.EmitEntities()))
+	fmt.Printf("%#v\n", ctx.CompileString(fmt.Sprintln(rt)))
 	return 0
 }
 
