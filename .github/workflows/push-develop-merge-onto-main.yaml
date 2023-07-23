@@ -22,6 +22,10 @@ jobs:
           go-version-file: "go.mod"
 
       - name: "Run tests"
+        run: "make deps"
+        working-directory: "ratchet"
+
+      - name: "Run tests"
         run: "make test"
         working-directory: "ratchet"
 
