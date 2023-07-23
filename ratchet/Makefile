@@ -16,13 +16,17 @@ ci:
 	act --rm -C ../
 
 .PHONY: unitest
-unitest:
+unitest: deps
 	go test ./... --tags=fixtures
 	go test -race ./...
 
 .PHONY: integration
-integration:
+integration: deps
 	rm -f cmd/ratchet/ratchet
 	go build -o cmd/ratchet/ratchet cmd/ratchet/main.go
 	PATH="$(PATH):$(PWD)/cmd/ratchet" testscript testdata/script/integration/*
 	rm cmd/ratchet/ratchet
+
+.PHONY: deps
+deps:
+	go install github.com/rogpeppe/go-internal/cmd/testscript@latest
