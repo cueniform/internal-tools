@@ -192,7 +192,12 @@ func Main() int {
 	}
 	rt.EmitEntities()
 	ctx := cuecontext.New()
-	fmt.Printf("%#v\n", ctx.CompileString(fmt.Sprintln(rt)))
+	v := ctx.CompileString(fmt.Sprintln(rt))
+	if v.Err() != nil {
+		fmt.Fprintln(os.Stderr, v.Err())
+		return 1
+	}
+	fmt.Printf("%#v\n", v)
 	return 0
 }
 
