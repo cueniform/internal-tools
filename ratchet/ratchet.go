@@ -176,6 +176,20 @@ func (rt *Ratchet) EmitBlocks(resourceID string, blocks gjson.Result) {
 	})
 }
 
+func formatPrimitiveTypes(key, value string, typeAttributes gjson.Result) string {
+	var output string
+	switch {
+	case typeAttributes.Get("required").Bool():
+		output = fmt.Sprintf("%s!: %s", key, value)
+	case typeAttributes.Get("optional").Bool():
+		output = fmt.Sprintf("%s?: %s", key, value)
+	default:
+		log.Fatalf("Attribute %q is neither required or optional: %v", key, typeAttributes)
+	}
+	return output
+}
+
+// String returns the string representation of Ratchet instance.
 func (rt *Ratchet) String() string {
 	return strings.Join(rt.OutputLines, "\n")
 }
@@ -195,33 +209,26 @@ func Main() int {
 	v := ctx.CompileString(fmt.Sprintln(rt))
 	if v.Err() != nil {
 		fmt.Fprintln(os.Stderr, v.Err())
+		fmt.Fprintln(os.Stderr, fmt.Sprint(rt))
 		return 1
 	}
 	fmt.Printf("%#v\n", v)
 	return 0
 }
 
-func formatPrimitiveTypes(key, value string, typeAttributes gjson.Result) string {
-	var output string
-	switch {
-	case typeAttributes.Get("required").Bool():
-		output = fmt.Sprintf("%s!: %s", key, value)
-	case typeAttributes.Get("optional").Bool():
-		output = fmt.Sprintf("%s?: %s", key, value)
-	default:
-		log.Fatalf("Attribute %q is neither required or optional: %v", key, typeAttributes)
-	}
-	return output
-}
-
-func formatSetOrListOfComplexObject(key string, objFields gjson.Result) string {
+func formatSetOrListOfComplexType(key string, objFields gjson.Result) string {
 	output := []string{fmt.Sprintf("%s: [..._#%s]", key, key)}
-	output = append(output, fmt.Sprintf("_#%s: {", key))
-	objFields.ForEach(func(key, value gjson.Result) bool {
-		output = append(output, fmt.Sprintf("%s!: %s", key, value.String()))
-		return true
-	})
-	output = append(output, "}")
+	if objFields.Array()[0].String() == "object" {
+		output = append(output, fmt.Sprintf("_#%s: {", key))
+		objFields.Array()[1].ForEach(func(key, value gjson.Result) bool {
+			output = append(output, fmt.Sprintf("%s!: %s", key, value.String()))
+			return true
+		})
+		output = append(output, "}")
+	}
+	if objFields.Array()[0].String() == "map" {
+		output = append(output, fmt.Sprintf("_#%s: [string]: %s", key, objFields.Array()[1].String()))
+	}
 	return strings.Join(output, "\n")
 }
 
@@ -270,7 +277,7 @@ func EmitAttribute(attrID string, entityID string, entityType string, terraformA
 			}
 			// it is a set or list of a complex type
 			if (attrTypeItems[0].String() == "list" || attrTypeItems[0].String() == "set") && attrTypeItems[1].Type == gjson.JSON {
-				return formatSetOrListOfComplexObject(attrID, attrTypeItems[1].Array()[1])
+				return formatSetOrListOfComplexType(attrID, attrTypeItems[1])
 			}
 			log.Fatalf("Unable to emit %q %q: cannot translate type for %q. Received -> %q\n", entityType, entityID, attrID, attrType.String())
 		}

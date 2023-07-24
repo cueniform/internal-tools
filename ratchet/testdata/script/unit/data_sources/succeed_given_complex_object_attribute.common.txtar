@@ -27,7 +27,7 @@ entity_id: {
                     }
                   ]
 				        ],
-                "required": true // paperwork - all attributes needs to be either required or optional
+                "required": true
               }
             }
           }
