@@ -1,0 +1,48 @@
+ratchet input.json provider.registry/provider_name
+cmp stdout GOLDEN/output.cue
+-- GOLDEN/output.cue --
+import "list"
+
+entity_id?: {
+	#Resource?: {
+		map_bool!: {
+			[string]: bool
+		}
+		list_number!: [...number]
+		set_string!: [...string] & list.UniqueItems()
+		object!: {
+			attribute!: string
+		}
+	}
+}
+-- input.json --
+{
+  "provider_schemas": {
+    "provider.registry/provider_name": {
+      "resource_schemas": {
+        "entity_id": {
+          "block": {
+            "attributes": {
+              "map_bool": {
+                "type": ["map", "bool"],
+                "required": true
+              },
+			        "list_number": {
+                "type": ["list", "number"],
+                "required": true
+              },
+			        "set_string": {
+                "type": ["set", "string"],
+                "required": true
+              },
+			        "object": {
+                "type": ["object", {"attribute": "string"}],
+                "required": true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

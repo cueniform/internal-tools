@@ -1,0 +1,35 @@
+ratchet input.json provider.registry/provider_name
+cmp stdout GOLDEN/output.cue
+-- GOLDEN/output.cue --
+entity_id?: {
+	#Resource?: {
+		block_id?: {
+			attribute_id!: string
+		}
+	}
+}
+-- input.json --
+{
+  "provider_schemas": {
+    "provider.registry/provider_name": {
+      "resource_schemas": {
+        "entity_id": {
+          "block": {
+            "block_types": {
+              "block_id": {
+                "block": {
+                  "attributes": {
+                    "attribute_id": {
+                      "type": "string",
+                      "required": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

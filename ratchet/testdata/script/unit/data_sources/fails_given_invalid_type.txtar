@@ -1,0 +1,22 @@
+! ratchet input.json provider.registry/provider_name
+! stdout .
+stderr 'entity_id.#DataSource.attribute_id: reference "bogus" not found'
+-- input.json --
+{
+  "provider_schemas": {
+    "provider.registry/provider_name": {
+      "data_source_schemas": {
+        "entity_id": {
+          "block": {
+            "attributes": {
+              "attribute_id": {
+                "type": "bogus",
+                "required": true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

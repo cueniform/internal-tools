@@ -1,0 +1,37 @@
+ratchet input.json provider.registry/provider_name
+cmp stdout GOLDEN/output.cue
+-- GOLDEN/output.cue --
+entity_id?: {
+	#DataSource?: {}
+}
+-- input.json --
+{
+  "provider_schemas": {
+    "provider.registry/provider_name": {
+      "data_source_schemas": {
+        "entity_id": {
+          "block": {
+            "attributes": {
+              "bool_attribute": {
+                "type": "bool",
+                "computed": true
+              },
+              "number_attribute": {
+                "type": "number",
+                "computed": true
+              },
+              "string_attribute": {
+                "type": "string",
+                "computed": true
+              },
+              "dynamic_attribute": {
+                "type": "dynamic",
+                "computed": true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

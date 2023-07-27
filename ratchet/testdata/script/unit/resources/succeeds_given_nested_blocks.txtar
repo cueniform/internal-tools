@@ -1,0 +1,50 @@
+ratchet input.json provider.registry/provider_name
+cmp stdout GOLDEN/output.cue
+-- GOLDEN/output.cue --
+resource_id?: {
+	#Resource?: {
+		block_id?: {
+			attribute_id!: string
+			nested_block_id?: {
+				nested_attribute_id!: number
+			}
+		}
+	}
+}
+-- input.json --
+{
+  "provider_schemas": {
+    "provider.registry/provider_name": {
+      "resource_schemas": {
+        "resource_id": {
+          "block": {
+            "block_types": {
+              "block_id": {
+                "block": {
+                  "attributes": {
+                    "attribute_id": {
+                      "type": "string",
+                      "required": true
+                    }
+                  },
+                  "block_types": {
+                    "nested_block_id": {
+                      "block": {
+                        "attributes": {
+                          "nested_attribute_id": {
+                            "type": "number",
+                            "required": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

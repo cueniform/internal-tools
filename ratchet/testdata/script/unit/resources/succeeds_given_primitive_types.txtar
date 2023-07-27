@@ -1,0 +1,42 @@
+ratchet input.json provider.registry/provider_name
+cmp stdout GOLDEN/output.cue
+-- GOLDEN/output.cue --
+entity_id?: {
+	#Resource?: {
+		bool_attribute!:    bool
+		number_attribute!:  number
+		string_attribute!:  string
+		dynamic_attribute!: _
+	}
+}
+-- input.json --
+{
+  "provider_schemas": {
+    "provider.registry/provider_name": {
+      "resource_schemas": {
+        "entity_id": {
+          "block": {
+            "attributes": {
+              "bool_attribute": {
+                "type": "bool",
+                "required": true
+              },
+              "number_attribute": {
+                "type": "number",
+                "required": true
+              },
+              "string_attribute": {
+                "type": "string",
+                "required": true
+              },
+              "dynamic_attribute": {
+                "type": "dynamic",
+                "required": true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

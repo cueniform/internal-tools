@@ -1,0 +1,16 @@
+{
+  "provider_schemas": {
+    "provider.registry/provider_name": {
+      "entity_schemas": {
+        "entity_id": {
+          "attributes": {
+            "attribute_id": {
+              "type": ["list", "string"],
+              "required": true
+            }
+          }
+        }
+      }
+    }
+  }
+}

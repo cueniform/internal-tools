@@ -2,6 +2,7 @@ package ratchet
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strings"
@@ -10,8 +11,10 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+// Ratchet stores the CLI runtime information
 type Ratchet struct {
-	OutputLines     []string
+	Debug           io.Writer
+	Output          []string
 	ProviderAddress string
 	ProviderSchema  string
 }
@@ -20,6 +23,7 @@ type Ratchet struct {
 func New(providerSchemaPath, providerAddress string) (*Ratchet, error) {
 	rt := &Ratchet{
 		ProviderAddress: providerAddress,
+		Debug:           io.Discard,
 	}
 	err := rt.ProviderData(providerSchemaPath)
 	if err != nil {
@@ -29,7 +33,6 @@ func New(providerSchemaPath, providerAddress string) (*Ratchet, error) {
 }
 
 // ProviderData returns the data of the provider associated with the Ratchet instance as a slice of bytes.
-// It is the public API to allow users to retrieve the provider data stored in the Ratchet instance.
 func (rt *Ratchet) ProviderData(providerSchemaPath string) error {
 	providerSchemaData, err := os.ReadFile(providerSchemaPath)
 	if err != nil {
@@ -40,158 +43,164 @@ func (rt *Ratchet) ProviderData(providerSchemaPath string) error {
 			providerSchemaData = providerSchemaData[:len(providerSchemaData)-1]
 		}
 	}
-	rt.providerData(providerSchemaData)
+	pathEscaped := strings.ReplaceAll(rt.ProviderAddress, ".", "\\.")
+	rt.ProviderSchema = gjson.GetBytes(providerSchemaData, "provider_schemas").Get(pathEscaped).String()
 	return nil
 }
 
-// providerData is the internal method that hides the implementation details of how to get the provider data.
-// Currently, it uses the Go module gjson which returns an empty string if the key does not exist.
-func (rt *Ratchet) providerData(providerSchemaData []byte) {
-	pathEscaped := strings.ReplaceAll(rt.ProviderAddress, ".", "\\.")
-	rt.ProviderSchema = gjson.GetBytes(providerSchemaData, "provider_schemas").Get(pathEscaped).String()
+// FormatCUEKey translates the key from gjson.Result to string representation of the CUE value
+// or errors out if the key is neither required or optional.
+func FormatCUEKey(keyID string, key gjson.Result) (string, error) {
+	switch {
+	case key.Get("required").Bool():
+		return fmt.Sprintf("%s!:", keyID), nil
+	case key.Get("optional").Bool():
+		return fmt.Sprintf("%s?:", keyID), nil
+	default:
+		return "", fmt.Errorf("%s is neither required nor optional. Received: %v", keyID, key)
+	}
 }
 
-// EmitEntities generates and emits entities for data sources and resources based on the Ratchet's provider schema.
-// It processes the JSON data and invokes 'EmitDatasources' and 'EmitResources' methods to handle data sources and
-// resources respectively.
+// EmitEntities generates and emits entities for data sources and resources based on
+// the Ratchet's provider schema.
 func (rt *Ratchet) EmitEntities() {
+	rt.Output = append(rt.Output, `import "list"`)
+	rt.Output = append(rt.Output, "\n")
 	gjson.Get(rt.ProviderSchema, "data_source_schemas").ForEach(func(dataSourceID, dataSourceValue gjson.Result) bool {
-		if dataSourceValue.Get("block").Get("attributes").Exists() {
-			rt.EmitDatasources(dataSourceID.String(), dataSourceValue.Get("block").Get("attributes"))
-		}
+		rt.Output = append(rt.Output, fmt.Sprintf("%s?: %s?: {\n", dataSourceID, "#DataSource"))
+		rt.EmitDataSource(dataSourceValue)
+		rt.Output = append(rt.Output, "}\n")
 		return true
 	})
 	gjson.Get(rt.ProviderSchema, "resource_schemas").ForEach(func(resourceID, resourceValue gjson.Result) bool {
-		if resourceValue.Get("block").Exists() {
-			rt.EmitResources(resourceID.String(), resourceValue.Get("block"))
-		}
+		rt.Output = append(rt.Output, fmt.Sprintf("%s?: %s?: {\n", resourceID, "#Resource"))
+		rt.EmitResource(resourceValue)
+		rt.Output = append(rt.Output, "}\n")
 		return true
 	})
 }
 
-// EmitDatasources generates and emits attributes for a specific data source based on the Terraform provider schema.
-// It processes the provided 'terraformAttributes' and separates them into required and optional attributes.
-func (rt *Ratchet) EmitDatasources(dataSourceID string, terraformAttributes gjson.Result) {
-	rt.OutputLines = append(rt.OutputLines, fmt.Sprintf("%s: %s: {", dataSourceID, "#DataSource"))
-	defer func() {
-		rt.OutputLines = append(rt.OutputLines, "}")
-	}()
+func (rt *Ratchet) EmitResource(attributes gjson.Result) {
 	required := []map[string]gjson.Result{}
 	optional := []map[string]gjson.Result{}
-	terraformAttributes.ForEach(func(attrID, terraformAttribute gjson.Result) bool {
-		if terraformAttribute.Get("required").Bool() {
-			required = append(required, map[string]gjson.Result{attrID.String(): terraformAttribute})
+	attributes.Get("block.attributes").ForEach(func(attributeID, attributeValue gjson.Result) bool {
+		if attributeValue.Get("computed").Bool() {
 			return true
 		}
-		if terraformAttribute.Get("optional").Bool() {
-			optional = append(optional, map[string]gjson.Result{attrID.String(): terraformAttribute})
+		if attributeValue.Get("required").Bool() {
+			required = append(required, map[string]gjson.Result{attributeID.String(): attributeValue})
 			return true
 		}
-		if terraformAttribute.Get("computed").Bool() {
+		if attributeValue.Get("optional").Bool() {
+			optional = append(optional, map[string]gjson.Result{attributeID.String(): attributeValue})
 			return true
 		}
-		log.Fatalf("(datasource) %s: Attribute %q is neither required nor optional: %v", dataSourceID, attrID, terraformAttribute)
+		log.Fatalf("%s is neither required nor optional", attributeID.String())
 		return false
 	})
 	for _, r := range required {
 		for k, v := range r {
-			rt.OutputLines = append(rt.OutputLines, EmitAttribute(k, dataSourceID, "#DataSource", v))
+			rt.EmitAttribute(k, v)
 		}
 	}
 	for _, o := range optional {
 		for k, v := range o {
-			rt.OutputLines = append(rt.OutputLines, EmitAttribute(k, dataSourceID, "#DataSource", v))
+			rt.EmitAttribute(k, v)
 		}
 	}
-}
-
-// EmitResources generates and emits attributes for a specific resource based on the Terraform provider schema.
-// It processes the provided 'terraformAttributes' and separates them into required and optional attributes.
-func (rt *Ratchet) EmitResources(resourceID string, terraformBlock gjson.Result) {
-	rt.OutputLines = append(rt.OutputLines, fmt.Sprintf("%s: %s: {", resourceID, "#Resource"))
-	defer func() {
-		rt.OutputLines = append(rt.OutputLines, "}")
-	}()
-	required := []map[string]gjson.Result{}
-	optional := []map[string]gjson.Result{}
-	if terraformBlock.Get("attributes").Exists() {
-		terraformBlock.Get("attributes").ForEach(func(attrID, terraformAttribute gjson.Result) bool {
-			if terraformAttribute.Get("computed").Bool() {
-				return true
-			}
-			if terraformAttribute.Get("required").Bool() {
-				required = append(required, map[string]gjson.Result{attrID.String(): terraformAttribute})
-				return true
-			}
-			if terraformAttribute.Get("optional").Bool() {
-				optional = append(optional, map[string]gjson.Result{attrID.String(): terraformAttribute})
-				return true
-			}
-			log.Fatalf("(resource) %s: Attribute %q is neither required nor optional: %v", resourceID, attrID, terraformAttribute)
-			return false
-		})
-	}
-	for _, r := range required {
-		for k, v := range r {
-			rt.OutputLines = append(rt.OutputLines, EmitAttribute(k, resourceID, "#Resource", v))
-		}
-	}
-	for _, o := range optional {
-		for k, v := range o {
-			rt.OutputLines = append(rt.OutputLines, EmitAttribute(k, resourceID, "#Resource", v))
-		}
-	}
-	if terraformBlock.Get("block_types").Exists() {
-		rt.EmitBlocks(resourceID, terraformBlock.Get("block_types"))
-	}
-}
-
-func (rt *Ratchet) EmitBlocks(resourceID string, blocks gjson.Result) {
-	blocks.ForEach(func(blockID, value gjson.Result) bool {
-		rt.OutputLines = append(rt.OutputLines, fmt.Sprintf("%s?: {", blockID.String()))
-		defer func() {
-			rt.OutputLines = append(rt.OutputLines, "}")
-		}()
-		if value.Get("block").Get("attributes").Exists() {
-			value.Get("block").Get("attributes").ForEach(func(attrID, terraformAttribute gjson.Result) bool {
-				if terraformAttribute.Get("required").Bool() {
-					rt.OutputLines = append(rt.OutputLines, EmitAttribute(attrID.String(), resourceID, "#Resource", terraformAttribute))
-					return true
-				}
-				if terraformAttribute.Get("optional").Bool() {
-					rt.OutputLines = append(rt.OutputLines, EmitAttribute(attrID.String(), resourceID, "#Resource", terraformAttribute))
-					return true
-				}
-				if terraformAttribute.Get("computed").Bool() {
-					return true
-				}
-				log.Fatalf("(block) %s: Attribute %q is neither required nor optional: %v", resourceID, attrID, terraformAttribute)
-				return false
-			})
-		}
-		if value.Get("block").Get("block_types").Exists() {
-			rt.EmitBlocks(resourceID, value.Get("block").Get("block_types"))
-		}
+	attributes.Get("block.block_types").ForEach(func(blockID, blockValue gjson.Result) bool {
+		rt.Output = append(rt.Output, fmt.Sprintf("%s?: {\n", blockID))
+		rt.EmitResource(blockValue)
+		rt.Output = append(rt.Output, "}\n")
 		return true
 	})
 }
 
-func formatPrimitiveTypes(key, value string, typeAttributes gjson.Result) string {
-	var output string
-	switch {
-	case typeAttributes.Get("required").Bool():
-		output = fmt.Sprintf("%s!: %s", key, value)
-	case typeAttributes.Get("optional").Bool():
-		output = fmt.Sprintf("%s?: %s", key, value)
-	default:
-		log.Fatalf("Attribute %q is neither required or optional: %v", key, typeAttributes)
+func (rt *Ratchet) EmitDataSource(attributes gjson.Result) {
+	if !attributes.Get("block.attributes").Exists() {
+		return
 	}
-	return output
+	required := []map[string]gjson.Result{}
+	optional := []map[string]gjson.Result{}
+	attributes.Get("block.attributes").ForEach(func(attributeID, attributeValue gjson.Result) bool {
+		if !attributeValue.Get("optional").Bool() && attributeValue.Get("computed").Bool() {
+			return true
+		}
+		if attributeValue.Get("required").Bool() {
+			required = append(required, map[string]gjson.Result{attributeID.String(): attributeValue})
+			return true
+		}
+		if attributeValue.Get("optional").Bool() {
+			optional = append(optional, map[string]gjson.Result{attributeID.String(): attributeValue})
+			return true
+		}
+		log.Fatalf("%s is neither required nor optional", attributeID.String())
+		return false
+	})
+	for _, r := range required {
+		for k, v := range r {
+			rt.EmitAttribute(k, v)
+		}
+	}
+	for _, o := range optional {
+		for k, v := range o {
+			rt.EmitAttribute(k, v)
+		}
+	}
+}
+
+func (rt *Ratchet) EmitAttribute(attributeID string, attributeValue gjson.Result) {
+	CUEKey, err := FormatCUEKey(attributeID, attributeValue)
+	if err != nil {
+		log.Fatal(err)
+	}
+	rt.Output = append(rt.Output, CUEKey)
+	rt.ConvertType(attributeValue.Get("type"))
 }
 
 // String returns the string representation of Ratchet instance.
 func (rt *Ratchet) String() string {
-	return strings.Join(rt.OutputLines, "\n")
+	return strings.Join(rt.Output, " ")
+}
+
+func (rt *Ratchet) ConvertType(attributeType gjson.Result) {
+	switch attributeType.Type {
+	case gjson.String:
+		s := attributeType.String()
+		if s == "dynamic" {
+			s = "_"
+		}
+		rt.Output = append(rt.Output, s)
+		rt.Output = append(rt.Output, "\n")
+	case gjson.JSON:
+		if attributeType.IsArray() {
+			if attributeType.Array()[0].String() == "list" {
+				rt.Output = append(rt.Output, "[...")
+				rt.ConvertType(attributeType.Array()[1])
+				rt.Output = append(rt.Output, "]\n")
+			}
+			if attributeType.Array()[0].String() == "set" {
+				rt.Output = append(rt.Output, "[...")
+				rt.ConvertType(attributeType.Array()[1])
+				rt.Output = append(rt.Output, "] & list.UniqueItems()\n")
+			}
+			if attributeType.Array()[0].String() == "map" {
+				rt.Output = append(rt.Output, "{[string]:")
+				rt.ConvertType(attributeType.Array()[1])
+				rt.Output = append(rt.Output, "}\n")
+			}
+			if attributeType.Array()[0].String() == "object" {
+				rt.Output = append(rt.Output, "{\n")
+				attributeType.Array()[1].ForEach(func(key, value gjson.Result) bool {
+					rt.Output = append(rt.Output, fmt.Sprintf("%s!: {", key))
+					rt.ConvertType(value)
+					rt.Output = append(rt.Output, "}\n")
+					return true
+				})
+				rt.Output = append(rt.Output, "}")
+			}
+		}
+	}
 }
 
 func Main() int {
@@ -209,81 +218,9 @@ func Main() int {
 	v := ctx.CompileString(fmt.Sprintln(rt))
 	if v.Err() != nil {
 		fmt.Fprintln(os.Stderr, v.Err())
-		fmt.Fprintln(os.Stderr, fmt.Sprint(rt))
+		//fmt.Fprintln(os.Stderr, fmt.Sprint(rt))
 		return 1
 	}
 	fmt.Printf("%#v\n", v)
 	return 0
-}
-
-func formatSetOrListOfComplexType(key string, objFields gjson.Result) string {
-	output := []string{fmt.Sprintf("%s: [..._#%s]", key, key)}
-	if objFields.Array()[0].String() == "object" {
-		output = append(output, fmt.Sprintf("_#%s: {", key))
-		objFields.Array()[1].ForEach(func(key, value gjson.Result) bool {
-			output = append(output, fmt.Sprintf("%s!: %s", key, value.String()))
-			return true
-		})
-		output = append(output, "}")
-	}
-	if objFields.Array()[0].String() == "map" {
-		output = append(output, fmt.Sprintf("_#%s: [string]: %s", key, objFields.Array()[1].String()))
-	}
-	return strings.Join(output, "\n")
-}
-
-func validType(items []gjson.Result) bool {
-	if len(items) != 2 {
-		return false
-	}
-	if items[0].Type != gjson.String {
-		return false
-	}
-	if items[0].String() != "list" && items[0].String() != "set" && items[0].String() != "map" {
-		return false
-	}
-	return true
-}
-
-func EmitAttribute(attrID string, entityID string, entityType string, terraformAttribute gjson.Result) string {
-	var CUEType string
-	attrType := terraformAttribute.Get("type")
-	switch attrType.Type {
-	// it is a primitive type
-	case gjson.String:
-		CUEType = attrType.String()
-		return formatPrimitiveTypes(attrID, CUEType, terraformAttribute)
-	// json schema missing required field.
-	case gjson.Null:
-		// if it happens means that cue vet did not run
-		// or there is a bug in the schema validation
-		log.Fatalf("BUG (validator): Attribute field not found in %q.", terraformAttribute.String())
-	// it is a complex type
-	case gjson.JSON:
-		if attrType.IsArray() {
-			attrTypeItems := attrType.Array()
-			if !validType(attrTypeItems) {
-				log.Fatalf("Invalid input for terraform attribute type: %q\n", attrType.String())
-			}
-			// it is a set or list of a primitive type
-			if (attrTypeItems[0].String() == "list" || attrTypeItems[0].String() == "set") && attrTypeItems[1].Type == gjson.String {
-				CUEType = fmt.Sprintf("[...%s]", attrTypeItems[1].String())
-				return formatPrimitiveTypes(attrID, CUEType, terraformAttribute)
-			}
-			// it is a map of a primitive type
-			if attrTypeItems[0].String() == "map" && attrTypeItems[1].Type == gjson.String {
-				CUEType = fmt.Sprintf("[string]: %s", attrTypeItems[1].String())
-				return formatPrimitiveTypes(attrID, CUEType, terraformAttribute)
-			}
-			// it is a set or list of a complex type
-			if (attrTypeItems[0].String() == "list" || attrTypeItems[0].String() == "set") && attrTypeItems[1].Type == gjson.JSON {
-				return formatSetOrListOfComplexType(attrID, attrTypeItems[1])
-			}
-			log.Fatalf("Unable to emit %q %q: cannot translate type for %q. Received -> %q\n", entityType, entityID, attrID, attrType.String())
-		}
-		log.Fatalf("Unable to emit %q %q: cannot translate type for %q. Received -> %q\n", entityType, entityID, attrID, attrType.String())
-	default:
-		log.Fatalf("Unkown type %q\n", attrType.Type)
-	}
-	return ""
 }

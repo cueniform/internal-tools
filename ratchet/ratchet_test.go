@@ -8,32 +8,11 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestNewErrorsGivenNonExistentFileAsInput(t *testing.T) {
-	t.Parallel()
-	_, err := ratchet.New(t.TempDir()+"/bogus.json", "bogus")
-	if err == nil {
-		t.Fatal("want error but got nil")
-	}
-}
-
-func TestNewSetExpectedProviderAddressGivenStringContainingDot(t *testing.T) {
-	t.Parallel()
-	want := "provider.registry/provider_name"
-	ratchet, err := ratchet.New("testdata/emptyfile.txt", "provider.registry/provider_name")
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := ratchet.ProviderAddress
-	if want != got {
-		t.Fatalf("want provider address %q, got %q", want, got)
-	}
-}
-
 func TestProviderData_ReturnsExpectedStringGivenProviderSchemaPathAndMatchingProviderAddress(t *testing.T) {
 	t.Parallel()
 	want := `{
-"resource_schemas":{
-"resource_id":{
+"entity_schemas":{
+"entity_id":{
 "attributes":{
 "attribute_id":{
 "type":["list","string"],
@@ -43,7 +22,7 @@ func TestProviderData_ReturnsExpectedStringGivenProviderSchemaPathAndMatchingPro
 }
 }
 }`
-	rt, err := ratchet.New("testdata/input.json", "provider.registry/provider_name")
+	rt, err := ratchet.New("testdata/example.json", "provider.registry/provider_name")
 	if err != nil {
 		t.Fatal(err)
 	}

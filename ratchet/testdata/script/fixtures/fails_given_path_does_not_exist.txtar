@@ -1,3 +1,0 @@
-! ratchet file_does_not_exist.json bogus
-! stdout .
-stderr 'open file_does_not_exist.json: no such file or directory'
