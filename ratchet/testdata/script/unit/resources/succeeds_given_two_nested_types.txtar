@@ -1,0 +1,52 @@
+ratchet input.json provider.registry/provider_name
+cmp stdout GOLDEN/output.cue
+-- GOLDEN/output.cue --
+resource_id?: {
+	#Resource?: {
+		nested_type_id?: {
+			second_level_nested_type_id?: {
+				second_level_attribute_id!: [...string]
+			}
+			attribute_id!: string
+		}
+	}
+}
+-- input.json --
+{
+  "provider_schemas": {
+    "provider.registry/provider_name": {
+      "resource_schemas": {
+        "resource_id": {
+          "block": {
+            "attributes": {
+              "nested_type_id": {
+                "nested_type": {
+                  "attributes": {
+                    "second_level_nested_type_id": {
+                      "nested_type": {
+                        "attributes": {
+                          "second_level_attribute_id": {
+                            "type": ["list","string"],
+                            "required": true
+                          }
+                        },
+                        "nesting_mode": "list"
+                      },
+                      "required": true
+                    },
+                    "attribute_id": {
+                      "type": "string",
+                      "required": true
+                    }
+                  },
+                  "nesting_mode": "list"
+                },
+                "optional": true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
