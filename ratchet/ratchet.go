@@ -173,32 +173,33 @@ func (rt *Ratchet) ConvertType(attributeType gjson.Result) {
 		rt.Output = append(rt.Output, s)
 		rt.Output = append(rt.Output, "\n")
 	case gjson.JSON:
-		if attributeType.IsArray() {
-			if attributeType.Array()[0].String() == "list" {
-				rt.Output = append(rt.Output, "[...")
-				rt.ConvertType(attributeType.Array()[1])
-				rt.Output = append(rt.Output, "]\n")
-			}
-			if attributeType.Array()[0].String() == "set" {
-				rt.Output = append(rt.Output, "[...")
-				rt.ConvertType(attributeType.Array()[1])
-				rt.Output = append(rt.Output, "] & list.UniqueItems()\n")
-			}
-			if attributeType.Array()[0].String() == "map" {
-				rt.Output = append(rt.Output, "{[string]:")
-				rt.ConvertType(attributeType.Array()[1])
+		if !attributeType.IsArray() {
+			log.Fatalf("Type must be string or array. Got: %q", attributeType.String())
+		}
+		if attributeType.Array()[0].String() == "list" {
+			rt.Output = append(rt.Output, "[...")
+			rt.ConvertType(attributeType.Array()[1])
+			rt.Output = append(rt.Output, "]\n")
+		}
+		if attributeType.Array()[0].String() == "set" {
+			rt.Output = append(rt.Output, "[...")
+			rt.ConvertType(attributeType.Array()[1])
+			rt.Output = append(rt.Output, "] & list.UniqueItems()\n")
+		}
+		if attributeType.Array()[0].String() == "map" {
+			rt.Output = append(rt.Output, "{[string]:")
+			rt.ConvertType(attributeType.Array()[1])
+			rt.Output = append(rt.Output, "}\n")
+		}
+		if attributeType.Array()[0].String() == "object" {
+			rt.Output = append(rt.Output, "{\n")
+			attributeType.Array()[1].ForEach(func(key, value gjson.Result) bool {
+				rt.Output = append(rt.Output, fmt.Sprintf("%s!: {", key))
+				rt.ConvertType(value)
 				rt.Output = append(rt.Output, "}\n")
-			}
-			if attributeType.Array()[0].String() == "object" {
-				rt.Output = append(rt.Output, "{\n")
-				attributeType.Array()[1].ForEach(func(key, value gjson.Result) bool {
-					rt.Output = append(rt.Output, fmt.Sprintf("%s!: {", key))
-					rt.ConvertType(value)
-					rt.Output = append(rt.Output, "}\n")
-					return true
-				})
-				rt.Output = append(rt.Output, "}")
-			}
+				return true
+			})
+			rt.Output = append(rt.Output, "}")
 		}
 	}
 }
