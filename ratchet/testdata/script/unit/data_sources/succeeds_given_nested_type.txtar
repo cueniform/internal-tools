@@ -1,0 +1,33 @@
+ratchet input.json provider.registry/provider_name
+cmp stdout GOLDEN/output.cue
+-- GOLDEN/output.cue --
+data_source_id?: {
+	#DataSource?: {}
+}
+-- input.json --
+{
+  "provider_schemas": {
+    "provider.registry/provider_name": {
+      "data_source_schemas": {
+        "data_source_id": {
+          "block": {
+            "attributes": {
+              "nested_type_id": {
+                "nested_type": {
+                  "attributes": {
+                    "attribute_id": {
+                      "type": "string",
+                      "required": true
+                    }
+                  },
+                  "nesting_mode": "list"
+                },
+                "optional": true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
