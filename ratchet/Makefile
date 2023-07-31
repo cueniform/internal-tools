@@ -9,12 +9,9 @@ build/%.json: schemata/%.json.zst
 	zstdcat "$^" >"$@"
 
 .PHONY: test
+test: cyclo
 test: unitest
 test: integration
-
-.PHONY: ci
-ci:
-	act --rm -C ../
 
 .PHONY: unitest
 unitest:
@@ -28,6 +25,11 @@ integration:
 	PATH="$(PATH):$(PWD)/cmd/ratchet" testscript testdata/script/integration/*
 	rm cmd/ratchet/ratchet
 
+.PHONY: cyclo
+cyclo:
+	gocyclo -over 10 .
+
 .PHONY: deps
 deps:
 	go install github.com/rogpeppe/go-internal/cmd/testscript@latest
+	go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
