@@ -199,7 +199,7 @@ func (rt *Ratchet) ConvertType(attributeType gjson.Result) {
 				rt.Output = append(rt.Output, "}\n")
 				return true
 			})
-			rt.Output = append(rt.Output, "}")
+			rt.Output = append(rt.Output, "}\n")
 		}
 	}
 }
