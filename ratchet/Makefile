@@ -23,7 +23,6 @@ unitest:
 
 .PHONY: integration
 integration:
-	test -z "$(which ratchet)" || rm "$(which ratchet)"
 	rm -f cmd/ratchet/ratchet
 	go build -o cmd/ratchet/ratchet cmd/ratchet/main.go
 	PATH="$(PATH):$(PWD)/cmd/ratchet" testscript testdata/script/integration/*
