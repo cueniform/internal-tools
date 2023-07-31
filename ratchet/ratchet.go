@@ -116,18 +116,44 @@ func (rt *Ratchet) EmitSingleAttributes(attributes gjson.Result) {
 		}
 	}
 }
+
+func (rt *Ratchet) EmitNestedAttribute(attributeID string, attributeValue gjson.Result) {
+	CUEKey, err := FormatCUEKey(attributeID, attributeValue)
+	if err != nil {
+		log.Fatal(err)
+	}
+	rt.Output = append(rt.Output, CUEKey)
+	rt.ConvertType(attributeValue.Get("type"))
+}
+
+func (rt *Ratchet) EmitNestedAttributes(attributes gjson.Result) {
+	attributes.Get("block.attributes").ForEach(func(attributeID, attributeValue gjson.Result) bool {
+		if attributeValue.Get("nested_type.attributes").Exists() {
+			rt.Output = append(rt.Output, fmt.Sprintf("%s?: {\n", attributeID))
+			attributeValue.Get("nested_type.attributes").ForEach(func(key, value gjson.Result) bool {
+				rt.EmitAttribute(key.String(), value)
+				return true
+			})
+			rt.Output = append(rt.Output, "}\n")
+		}
+
+		return true
+	})
+}
+
 func (rt *Ratchet) EmitResource(attributes gjson.Result) {
 	rt.EmitSingleAttributes(attributes)
 	rt.EmitBlockAttributes(attributes)
+	rt.EmitNestedAttributes(attributes)
 }
 
 func (rt *Ratchet) EmitDataSource(attributes gjson.Result) {
-	if !attributes.Get("block.attributes").Exists() {
-		return
-	}
 	required := []map[string]gjson.Result{}
 	optional := []map[string]gjson.Result{}
 	attributes.Get("block.attributes").ForEach(func(attributeID, attributeValue gjson.Result) bool {
+		if attributeValue.Get("nested_type").Exists() {
+			return true
+		}
 		if !attributeValue.Get("optional").Bool() && attributeValue.Get("computed").Bool() {
 			return true
 		}
