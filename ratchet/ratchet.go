@@ -32,24 +32,19 @@ func New(providerSchemaPath, providerAddress string) (*Ratchet, error) {
 	return rt, nil
 }
 
-// ProviderData returns the data of the provider associated with the Ratchet instance as a slice of bytes.
+// ProviderData stores the data of the provider associated with the Ratchet instance as a slice of bytes.
 func (rt *Ratchet) ProviderData(providerSchemaPath string) error {
 	providerSchemaData, err := os.ReadFile(providerSchemaPath)
 	if err != nil {
 		return err
-	}
-	if len(providerSchemaData) > 0 {
-		if providerSchemaData[len(providerSchemaData)-1] == '\n' {
-			providerSchemaData = providerSchemaData[:len(providerSchemaData)-1]
-		}
 	}
 	pathEscaped := strings.ReplaceAll(rt.ProviderAddress, ".", "\\.")
 	rt.ProviderSchema = gjson.GetBytes(providerSchemaData, "provider_schemas").Get(pathEscaped).String()
 	return nil
 }
 
-// FormatCUEKey translates the key from gjson.Result to string representation of the CUE value
-// or errors out if the key is neither required or optional.
+// FormatCUEKey returns the translated string from gjson.Result to CUE value
+// or returns an error if the key is neither required nor optional.
 func FormatCUEKey(keyID string, key gjson.Result) (string, error) {
 	switch {
 	case key.Get("required").Bool():
@@ -80,10 +75,22 @@ func (rt *Ratchet) EmitEntities() {
 	})
 }
 
-func (rt *Ratchet) EmitResource(attributes gjson.Result) {
+func (rt *Ratchet) EmitBlockAttributes(attributes gjson.Result) {
+	attributes.Get("block.block_types").ForEach(func(blockID, blockValue gjson.Result) bool {
+		rt.Output = append(rt.Output, fmt.Sprintf("%s?: {\n", blockID))
+		rt.EmitResource(blockValue)
+		rt.Output = append(rt.Output, "}\n")
+		return true
+	})
+}
+
+func (rt *Ratchet) EmitSingleAttributes(attributes gjson.Result) {
 	required := []map[string]gjson.Result{}
 	optional := []map[string]gjson.Result{}
 	attributes.Get("block.attributes").ForEach(func(attributeID, attributeValue gjson.Result) bool {
+		if attributeValue.Get("nested_type").Exists() {
+			return true
+		}
 		if attributeValue.Get("computed").Bool() {
 			return true
 		}
@@ -108,12 +115,10 @@ func (rt *Ratchet) EmitResource(attributes gjson.Result) {
 			rt.EmitAttribute(k, v)
 		}
 	}
-	attributes.Get("block.block_types").ForEach(func(blockID, blockValue gjson.Result) bool {
-		rt.Output = append(rt.Output, fmt.Sprintf("%s?: {\n", blockID))
-		rt.EmitResource(blockValue)
-		rt.Output = append(rt.Output, "}\n")
-		return true
-	})
+}
+func (rt *Ratchet) EmitResource(attributes gjson.Result) {
+	rt.EmitSingleAttributes(attributes)
+	rt.EmitBlockAttributes(attributes)
 }
 
 func (rt *Ratchet) EmitDataSource(attributes gjson.Result) {
