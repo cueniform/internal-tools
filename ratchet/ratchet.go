@@ -219,7 +219,7 @@ func Main() int {
 	v := ctx.CompileString(fmt.Sprintln(rt))
 	if v.Err() != nil {
 		fmt.Fprintln(os.Stderr, v.Err())
-		//fmt.Fprintln(os.Stderr, fmt.Sprint(rt))
+		fmt.Fprintln(rt.Debug, fmt.Sprint(rt))
 		return 1
 	}
 	fmt.Printf("%#v\n", v)
