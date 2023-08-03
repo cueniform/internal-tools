@@ -4,7 +4,7 @@ cmp stdout GOLDEN/output.cue
 resource_id?: {
 	#Resource?: {
 		nested_type_id?: {
-			second_level_nested_type_id?: {
+			second_level_nested_type_id!: {
 				second_level_attribute_id!: [...string]
 			}
 			attribute_id!: string

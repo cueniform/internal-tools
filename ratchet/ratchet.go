@@ -123,6 +123,12 @@ func (rt *Ratchet) EmitNestedAttribute(attributeID string, attributeValue gjson.
 		log.Fatal(err)
 	}
 	rt.Output = append(rt.Output, CUEKey)
+	if attributeValue.Get("nested_type.attributes").Exists() {
+		attributeValue.Get("nested_type.attributes").ForEach(func(key, value gjson.Result) bool {
+			rt.EmitNestedAttribute(key.String(), value)
+			return true
+		})
+	}
 	rt.ConvertType(attributeValue.Get("type"))
 }
 
@@ -131,7 +137,7 @@ func (rt *Ratchet) EmitNestedAttributes(attributes gjson.Result) {
 		if attributeValue.Get("nested_type.attributes").Exists() {
 			rt.Output = append(rt.Output, fmt.Sprintf("%s?: {\n", attributeID))
 			attributeValue.Get("nested_type.attributes").ForEach(func(key, value gjson.Result) bool {
-				rt.EmitAttribute(key.String(), value)
+				rt.EmitNestedAttribute(key.String(), value)
 				return true
 			})
 			rt.Output = append(rt.Output, "}\n")
