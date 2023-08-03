@@ -118,6 +118,9 @@ func (rt *Ratchet) EmitSingleAttributes(attributes gjson.Result) {
 }
 
 func (rt *Ratchet) EmitNestedAttribute(attributeID string, attributeValue gjson.Result) {
+	if !attributeValue.Get("optional").Bool() && attributeValue.Get("computed").Bool() {
+		return
+	}
 	CUEKey, err := FormatCUEKey(attributeID, attributeValue)
 	if err != nil {
 		log.Fatal(err)
